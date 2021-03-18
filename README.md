@@ -36,6 +36,8 @@ The only required input is the first argument, which can be a file name or URL. 
 
 The main list of URLs is stored in memory. Every time the script reaches the end of the main list, and approximately once every hour (if the list has more than 50 URLs), URLs for failed capture jobs and outlinks are added to the list. When there are no more URLs, the script terminates.
 
+The script may sometimes not output to the console or to the log files for an extended period. This can occur if Save Page Now introduces a delay for captures of a specific domain, though typically the delay is only around a few minutes. [If you're on Windows, make sure it isn't just PowerShell.](https://serverfault.com/a/205898)
+
 #### Flags
 
 ```
