@@ -74,7 +74,7 @@ The `.log` files in the data folder of the running script do not affect the scri
 
 ## Changelog
 
-* March 18, 2021: Initial release
+* March 18, 2021: Initial release of `spn.sh`
 
 ### Future plans
 
