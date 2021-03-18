@@ -1,6 +1,6 @@
 # Title pending (`wayback-machine-spn-scripts`)
 
-`spn.sh`, a Bash script that asks the Internet Archive Wayback Machine's Save Page Now to save live web pages
+`spn.sh`, a Bash script that asks the Internet Archive Wayback Machine's Save Page Now (SPN) to save live web pages
 
 ## Introduction
 
