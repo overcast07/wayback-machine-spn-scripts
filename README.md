@@ -28,7 +28,7 @@ Download the script and make it executable with the command `chmod u+x spn.sh`.
 
 ### Dependencies
 
-This script is written in Bash and has been tested using the shell environment preinstalled binaries on macOS and Windows 10 WSL Ubuntu. As far as possible, utilities have been used in ways which are consistent for both their GNU and BSD implementations.
+This script is written in Bash and has been tested using the shell environment preinstalled binaries on macOS and Windows 10 WSL Ubuntu. As far as possible, utilities have been used in ways in which behavior is consistent for both their GNU and BSD implementations.
 
 ### Operation
 
@@ -36,7 +36,7 @@ The only required input is the first argument, which can be a file name or URL. 
 
 The main list of URLs is stored in memory. Every time the script reaches the end of the main list, and approximately once every hour (if the list has more than 50 URLs), URLs for failed capture jobs and outlinks are added to the list. When there are no more URLs, the script terminates.
 
-The script may sometimes not output to the console or to the log files for an extended period. This can occur if Save Page Now introduces a delay for captures of a specific domain, though typically the delay is only around a few minutes. [If you're on Windows, make sure it isn't just PowerShell.](https://serverfault.com/a/205898)
+The script may sometimes not output to the console or to the log files for an extended period. This can occur if Save Page Now introduces a delay for captures of a specific domain, though typically the delay is only around a few minutes at most. [If you're on Windows, make sure it isn't just PowerShell.](https://serverfault.com/a/205898)
 
 #### Flags
 
@@ -47,7 +47,7 @@ The script may sometimes not output to the console or to the log files for an ex
  -q             discard JSON for completed jobs instead of writing to log file"
 ```
 
-* The `-o` flag provides a POSIX ERE regular expression pattern. Around every hour, outlinks in the JSON received from Save Page Now that match the pattern are added to the list of URLs to be submitted to Save Page Now. If an outlink has already been captured in a previous job, it will not be added to the list. A maximum of 100 outlinks per capture can be sent by Save Page Now, and the maximum number of provided outlinks to certain sites (e.g. outlinks matching `example.com`) may be limited server-side. To save as many outlinks as possible, use `-o '.*'`.
+* The `-o` flag enables recursive saving of outlinks. The argument should be a POSIX ERE regular expression pattern. Around every hour, outlinks in the JSON received from Save Page Now that match the pattern are added to the list of URLs to be submitted to Save Page Now. If an outlink has already been captured in a previous job, it will not be added to the list. A maximum of 100 outlinks per capture can be sent by Save Page Now, and the maximum number of provided outlinks to certain sites (e.g. outlinks matching `example.com`) may be limited server-side. To save as many outlinks as possible, use `-o '.*'`.
 * The `-p` flag sets the maximum number of parallel capture jobs, which can be between 2 and 30. If the flag is not used, capture jobs do not run simultaneously. The Save Page Now rate limit will prevent a user from starting another capture job if the user's load on the server is too high, so setting the value higher may not always be more efficient. Be careful with using this on websites that may be easily overloaded.
 * The `-n` flag unsets the HTTP POST option `capture_all=on`. This tells Save Page Now not to save error pages to the Wayback Machine.
 * The `-q` flag tells the script not to write JSON for successful captures to the disk. This can save disk space if you don't intend to use the JSON for anything.
@@ -70,8 +70,8 @@ The `.log` files in the data folder of the running script do not affect the scri
 * `success-json.log` contains the final received status response JSON for successful capture jobs. If the `-q` flag is used, the file is not created and the JSON is discarded after being received.
 * `captures.log` contains the Wayback Machine URLs for successful capture jobs (`https://web.archive.org` is omitted). If the submitted URL is a redirect, then the Wayback Machine URL may be different.
 * `error-json.log` contains the final received status response JSON for unsuccessful capture jobs that return errors, including those which are retried (i.e. Save Page Now internal/proxy errors).
-* `failed.log` contains the submitted URLs for unsuccessful capture jobs that are not retried.
-* `invalid.log` contains the submitted URLs for capture jobs that fail to start and are not retried.
+* `failed.log` contains the submitted URLs for unsuccessful capture jobs that are not retried, along with the date and time and the error code provided in the status response JSON.
+* `invalid.log` contains the submitted URLs for capture jobs that fail to start and are not retried, along with the date and time and the site's error message (if any).
 * `unknown-json.log` contains the final received status response for capture jobs that end unsuccessfully after receiving an unparsable status response.
 
 ## Changelog
