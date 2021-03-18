@@ -72,7 +72,11 @@ The `.log` files in the data folder of the running script do not affect the scri
 * `invalid.log` contains the submitted URLs for capture jobs that fail to start and are not retried.
 * `unknown-json.log` contains the final received status response for capture jobs that end unsuccessfully after receiving an unparsable status response.
 
-## Future plans
+## Changelog
+
+* March 18, 2021: Initial release
+
+### Future plans
 
 * Make it possible to restart an aborted session
 * Add HTTPS-only flag
