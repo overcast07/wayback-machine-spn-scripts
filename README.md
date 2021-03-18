@@ -14,7 +14,7 @@
 
 ### Motivation
 
-There exist several alternatives to using a script such as this one, including [wayback-gsheets](https://archive.org/services/wayback-gsheets/) on archive.org. However, in terms of functionality, this script has some advantages over other methods of sending captures to the Wayback Machine.
+There exist several alternatives to this script, including [wayback-gsheets](https://archive.org/services/wayback-gsheets/) on archive.org. However, in terms of functionality, this script has some advantages over other methods of sending captures to the Wayback Machine.
 
 * At present, Save Page Now has an error rate of around 20% to 30% regardless of the content being saved and the rate of operation. [This is a known issue](https://old.reddit.com/r/WaybackMachine/comments/m139pt/ive_got_an_amazing_response_from_the_wayback/) but has not been fixed for some time. The script will automatically retry those captures.
 * In comparison to the outlinks function native to Save Page Now, the script allows outlinks to be recursively captured, and allows for inclusion/exclusion of groups of URLs. For example, the user can prevent a website's login form from being captured. Additionally, the website's outlinks function can sometimes overwhelm smaller websites, since all of the outlink captures are started at the same time, whereas the script allows the user to prevent this by limiting the number of parallel capture jobs.
