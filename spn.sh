@@ -12,10 +12,11 @@ pattern=''
 exclude_pattern=''
 
 print_usage() {
-	echo "Usage: $(basename "$0") [-nqs] [-a auth] [-d data] [-o pattern] [-x pattern] [-p num] file
-       $(basename "$0") [-nqs] [-a auth] [-d data] [-o pattern] [-x pattern] [-p num] url [url]...
-       $(basename "$0") [-nqs] [-a auth] [-d data] [-o pattern] [-x pattern] [-p num] -r folder
+	echo "Usage: $(basename "$0") [options] file
+       $(basename "$0") [options] url [url]...
+       $(basename "$0") [options] -r folder
 
+Options:
  -a auth        S3 API keys, in the form accesskey:secret
                 (get account keys at https://archive.org/account/s3.php)
  -d data        capture request options, or other arbitrary POST data
