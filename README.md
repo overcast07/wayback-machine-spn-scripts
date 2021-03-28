@@ -43,10 +43,6 @@ The script may sometimes not output to the console or to the log files for an ex
 #### Flags
 
 ```
-Usage: spn.sh [-nqs] [-a auth] [-d data] [-o pattern] [-x pattern] [-p num] file
-       spn.sh [-nqs] [-a auth] [-d data] [-o pattern] [-x pattern] [-p num] url [url]...
-       spn.sh [-nqs] [-a auth] [-d data] [-o pattern] [-x pattern] [-p num] -r folder
-
  -a auth        S3 API keys, in the form accesskey:secret
                 (get account keys at https://archive.org/account/s3.php)
  -d data        capture request options, or other arbitrary POST data
@@ -61,7 +57,7 @@ Usage: spn.sh [-nqs] [-a auth] [-d data] [-o pattern] [-x pattern] [-p num] file
                 (if -o is also used, outlinks are filtered using both regexes)
 ```
 
-All flags should be placed before arguments.
+All flags should be placed before arguments, but flags may be used in any order.
 
 * The `-a` flag allows the user to log in to an archive.org account with [S3 API keys](https://archive.org/account/s3.php). The keys should be provided in the form `accesskey:secret` (e.g. `-a YT2VJkcJV7ZuhA9h:7HeAKDvqN7ggrC3N`). If this flag is used, some login-only options can be enabled with the `-d` flag, in particular `capture_outlinks=1` and `capture_screenshot=1`. Additionally, much less data is downloaded when submitting URLs, and the captures will count towards the archive.org account's daily limit instead of that of the user's IP.
 * The `-d` flag allows the use of Save Page Now's [capture request options](https://docs.google.com/document/d/1Nsv52MvSjbLb2PCpHlat0gkzw0EvtSgpKHu4mk0MnrA/edit#heading=h.uu61fictja6r), which should be formatted as POST data (e.g. `-d 'force_get=1&if_not_archived_within=86400'`). Documentation for the available options is available in the linked Google Drive document. Some options, in particular `capture_outlinks=1` and `capture_screenshot=1`, require authentication through the `-a` flag. The options are set for all submitted URLs. By default, the script sets the option `capture_all=on`; the `-n` flag disables it, but it can also be disabled by including `capture_all=0` in the `-d` flag's argument. Note that as of March 2021, the `outlinks_availability=1` option does not appear to work as described, and other parts of the documentation may be out of date.
