@@ -1,36 +1,109 @@
 #!/bin/bash
 
+auth=''
+post_data=''
 no_errors=''
-pattern=''
+outlinks=''
 parallel=''
 quiet=''
+resume=''
+ssl_only=''
+pattern=''
+exclude_pattern=''
 
 print_usage() {
-	echo "Usage: $(basename "$0") [-nq] [-o pattern] [-p num] file
-       $(basename "$0") [-nq] [-o pattern] [-p num] url [url]...
+	echo "Usage: $(basename "$0") [-nqs] [-a auth] [-d data] [-o pattern] [-p num] file
+       $(basename "$0") [-nqs] [-a auth] [-d data] [-o pattern] [-p num] url [url]...
+       $(basename "$0") [-nqs] [-a auth] [-d data] [-o pattern] [-p num] -r folder
 
+ -a auth        S3 API keys, in the form accesskey:secret
+                (get account keys at https://archive.org/account/s3.php)
+ -d data        capture request options, or other arbitrary POST data
  -n             tell Save Page Now not to save errors into the Wayback Machine
- -o pattern     archive detected capture outlinks matching regex (ERE) pattern
+ -o pattern     save detected capture outlinks matching regex (ERE) pattern
  -p N           run at most N capture jobs in parallel (off by default)
- -q             discard JSON for completed jobs instead of writing to log file"
+ -q             discard JSON for completed jobs instead of writing to log file
+ -r folder      resume with the remaining URLs of an aborted session
+                (aborted session's settings do not carry over)
+ -s             use HTTPS for all captures and change HTTP input URLs to HTTPS
+ -x pattern     save detected capture outlinks not matching regex (ERE) pattern
+                (if -o is also used, outlinks are filtered using both regexes)"
 }
 
-while getopts 'no:p:q' flag; do
+while getopts 'a:d:no:p:qr:sx:' flag; do
 	case "${flag}" in
+		a)	auth="$OPTARG" ;;
+		d)	post_data="$OPTARG" ;;
 		n)	no_errors='true' ;;
-		o)	pattern="$OPTARG" ;;
+		o)	outlinks='true'; pattern="$OPTARG" ;;
 		p)	parallel="$OPTARG" ;;
 		q)	quiet='true' ;;
+		r)	resume="$OPTARG" ;;
+		s)	ssl_only='true' ;;
+		x)	outlinks='true'; exclude_pattern="$OPTARG" ;;
 		*)	print_usage
 			exit 1 ;;
 	esac
 done
 shift "$((OPTIND-1))"
 
-# File or at least one URL must be provided
-if [[ -z "$1" ]]; then
-	print_usage
-	exit 1
+
+if [[ -n "$resume" ]]; then
+	# There should not be any arguments
+	if [[ -n "$1" ]]; then
+		print_usage
+		exit 1
+	fi
+	# Get list
+	# List will be constructed from the specified folder
+	if [[ ! -d "$resume" ]]; then
+		echo "The folder $resume could not be found"
+		exit 1
+	fi
+	cd "$resume"
+	if ! [[ -f "index.txt" && -f "success.log" ]]; then
+		echo "Could not resume session; required files not found"
+		exit 1
+	fi
+	if [[ -f "outlinks.txt" ]]; then
+		# Index will also include successful redirects, which should be logged in captures.log
+		if [[ -f "captures.log" ]]; then
+			success=$(cat success.log captures.log | sed -Ee 's|^/web/[0-9]+/||g')
+		else
+			success=$(<success.log)
+		fi
+		index=$(cat index.txt outlinks.txt)
+		# Convert links to HTTPS
+		if [[ -n "$ssl_only" ]]; then
+			index=$(echo "$index" | sed -Ee 's|^[[:blank:]]*(https?://)?[[:blank:]]*([^[:blank:]]+)|https://\2|g')
+			success=$(echo "$success" | sed -Ee 's|^[[:blank:]]*(https?://)?[[:blank:]]*([^[:blank:]]+)|https://\2|g')
+		fi
+		# Remove duplicate lines from new index
+		index=$(awk '!seen [$0]++' <<< "$index")
+		# Remove links that are in success.log and captures.log from new index
+		list=$(awk '{if (f==1) { r[$0] } else if (! ($0 in r)) { print $0 } } ' f=1 <(echo "$success") f=2 <(echo "$index"))
+	else
+		# Remove links that are in success.log from index.txt
+		list=$(awk '{if (f==1) { r[$0] } else if (! ($0 in r)) { print $0 } } ' f=1 success.log f=2 index.txt)
+	fi
+	if [[ -z "$list" ]]; then
+		echo "Session already complete; not resuming"
+		exit 1
+	fi
+	cd
+else
+	# File or at least one URL must be provided
+	if [[ -z "$1" ]]; then
+		print_usage
+		exit 1
+	fi
+	# Get list
+	# Treat as filename if only one argument and file exists, and as URLs otherwise
+	if [[ -n "$2" || ! -f "$1" ]]; then
+		list=$(for i in "$@"; do echo "$i"; done)
+	else
+		list=$(<"$1")
+	fi
 fi
 
 parent="spn-data"
@@ -44,123 +117,157 @@ for i in "$parent" "$parent/$month" "$parent/$month/$now"; do
 done
 dir="$parent/$month/$now"
 echo "Created data folder ~/$dir"
-
-# Get list
-# Treat as filename if only one argument and file exists, and as URLs otherwise
-if [[ -n "$2" || ! -f "$1" ]]; then
-	list=$(for i in "$@"; do echo "$i"; done)
-else
-	list=$(<"$1")
-fi
-
 cd ~/"$dir"
 
-# Set POST options (at present, only one option available while logged out)
-if [[ -n "$no_errors" ]]; then
-	capture_all=""
-else
-	capture_all="capture_all=on"
+# Convert links to HTTPS
+if [[ -n "$ssl_only" ]]; then
+	list=$(echo "$list" | sed -Ee 's|^[[:blank:]]*(https?://)?[[:blank:]]*([^[:blank:]]+)|https://\2|g')
+fi
+
+# Set POST options
+# The web form sets capture_all=on by default; this replicates the default behavior
+if [[ -z "$no_errors" ]]; then
+	if [[ -n "$post_data" ]]; then
+		post_data="${post_data}&capture_all=on"
+	else
+		post_data="capture_all=on"
+	fi
 fi
 
 # Create data files
 # max_parallel_jobs.txt and status_rate.txt are created later
 touch failed.txt
-if [[ -n "$pattern" ]]; then
-	echo "$list" | awk '!seen [$0]++' > index.txt
+echo "$list" | awk '!seen [$0]++' > index.txt
+if [[ -n "$outlinks" ]]; then
 	touch outlinks.txt
 fi
 
 # Submit a URL to Save Page Now and check the result
 function capture(){
-	local finished="0"
 	local tries="0"
-	while [[ "$finished" == "0" ]] && ((tries < 3)); do
+	local request
+	local job_id
+	local message
+	while ((tries < 3)); do
 		# Submit
 		local lock_wait=0
 		local start_time=`date +%s`
-		local submit_finished="0"
-		while [[ "$submit_finished" == "0" ]]; do
-			# Loop exit conditions:
-			# - Forced exit of process upon error ("return 1")
-			# - Job started successfully (submit_finished=1)
+		while :; do
 			if (( $(date +%s) - start_time > 210 )); then
 				echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
 				echo "$1" >> failed.txt
 				return 1
 			fi
-			local request=$(curl -s -m 60 -X POST --data-urlencode "url=${1}" --data-urlencode "${capture_all}" "https://web.archive.org/save/$1")
-			local job_id=$(echo "$request" | grep -E 'spn\.watchJob\(' | grep -Eo '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)
-			if ! [[ -n "$job_id" ]]; then
+			if [[ -n "$auth" ]]; then
+				request=$(curl -s -m 60 -X POST --data-urlencode "url=${1}" -d "${post_data}" -H "Accept: application/json" -H "Authorization: LOW ${auth}" "https://web.archive.org/save/")
+				job_id=$(echo "$request" | grep -Eo '"job_id":"([^"\\]|\\["\\])*"' | head -1 | sed -Ee 's/"job_id":"(.*)"/\1/g')
+				if [[ -n "$job_id" ]]; then
+					break
+				fi
 				echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Request failed] $1"
-				local error_message=$(echo "$request" | grep -E -A 1 "<h2>")
-				if [[ -n "$error_message" ]]; then
-					echo "$error_message"
-					if [[ "$error_message" =~ "You have already reached the limit of active sessions" ]]; then
-						if [[ ! -f lock.txt ]]; then
-							touch lock.txt
-							while [[ -f lock.txt ]]; do
-								sleep 2
-								request=$(curl -s -m 60 -X POST --data-urlencode "url=${1}" --data-urlencode "${capture_all}" "https://web.archive.org/save/$1")
-								job_id=$(echo "$request" | grep -E 'spn\.watchJob\(' | grep -Eo '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)
-								if ! [[ -n "$job_id" ]]; then
-									echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Request failed] $1"
-									error_message=$(echo "$request" | grep -E -A 1 "<h2>")
-									if [[ -n "$error_message" ]]; then
-										echo "$error_message"
-										if [[ "$error_message" =~ "You have already reached the limit of active sessions" ]]; then
-											:
-										elif [[ "$error_message" =~ "You cannot make more than "[1-9][0-9,]*" captures per day" ]]; then
-											rm lock.txt
-											touch daily_limit.txt
-											echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
-											echo "$1" >> failed.txt
-											return 1
-										else
-											rm lock.txt
-											echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
-											echo "$(date -u '+%Y-%m-%d %H:%M:%S') $1" >> invalid.log
-											echo "$error_message" >> invalid.log
-											return 1
-										fi
-									else
-										rm lock.txt
-									fi
-								else
-									submit_finished="1"
-									rm lock.txt
-								fi
-							done
-						else
-							while [[ -f lock.txt ]]; do
-								sleep 5
-								((lock_wait+=5))
-								if ((lock_wait > 120)); then
-									echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
-									echo "$1" >> failed.txt
-									return 1
-								fi
-							done
-						fi
-					elif [[ "$error_message" =~ "You cannot make more than "[1-9][0-9,]*" captures per day" ]]; then
-						touch daily_limit.txt
-						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
-						echo "$1" >> failed.txt
-						return 1
+				message=$(echo "$request" | grep -Eo '"message":"([^"\\]|\\["\\])*"' | sed -Ee 's/"message":"(.*)"/\1/g')
+			else
+				request=$(curl -s -m 60 -X POST --data-urlencode "url=${1}" -d "${post_data}" "https://web.archive.org/save/")
+				job_id=$(echo "$request" | grep -E 'spn\.watchJob\(' | grep -Eo '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)
+				if [[ -n "$job_id" ]]; then
+					break
+				fi
+				echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Request failed] $1"
+				message=$(echo "$request" | grep -E -A 1 "<h2>" | tail -1 | sed -Ee 's|</?p>||g')
+			fi
+			if [[ -z "$message" ]]; then
+				if [[ "$request" =~ "429 Too Many Requests" ]]; then
+					echo "$request"
+					if [[ ! -f lock.txt ]]; then
+						touch lock.txt
+						sleep 20
+						rm lock.txt
 					else
 						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
-						echo "$(date -u '+%Y-%m-%d %H:%M:%S') $1" >> invalid.log
-						echo "$error_message" >> invalid.log
+						echo "$1" >> failed.txt
 						return 1
 					fi
 				else
 					sleep 5
 				fi
-				if [[ "$request" =~ "429 Too Many Requests" ]]; then
-					echo "$request"
-					sleep 20
-				fi
 			else
-				submit_finished="1"
+				echo "$message"
+				if ! [[ "$message" =~ "You have already reached the limit of active sessions" || "$message" =~ "Cannot start capture" ]]; then
+					if [[ "$message" =~ "You cannot make more than "[1-9][0-9,]*" captures per day" ]]; then
+						touch daily_limit.txt
+						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
+						echo "$1" >> failed.txt
+					else
+						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
+						echo "$(date -u '+%Y-%m-%d %H:%M:%S') $1" >> invalid.log
+						echo "$message" >> invalid.log
+					fi
+					return 1
+				fi
+				if [[ ! -f lock.txt ]]; then
+					touch lock.txt
+					while [[ -f lock.txt ]]; do
+						# Retry the request until either the job is submitted or a different error is received
+						sleep 2
+						if [[ -n "$auth" ]]; then
+							request=$(curl -s -m 60 -X POST --data-urlencode "url=${1}" -d "${post_data}" -H "Accept: application/json" -H "Authorization: LOW ${auth}" "https://web.archive.org/save/")
+							job_id=$(echo "$request" | grep -Eo '"job_id":"([^"\\]|\\["\\])*"' | head -1 | sed -Ee 's/"job_id":"(.*)"/\1/g')
+							if [[ -n "$job_id" ]]; then
+								rm lock.txt
+								break 2
+							fi
+							echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Request failed] $1"
+							message=$(echo "$request" | grep -Eo '"message":"([^"\\]|\\["\\])*"' | sed -Ee 's/"message":"(.*)"/\1/g')
+						else
+							request=$(curl -s -m 60 -X POST --data-urlencode "url=${1}" -d "${post_data}" "https://web.archive.org/save/")
+							job_id=$(echo "$request" | grep -E 'spn\.watchJob\(' | grep -Eo '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)
+							if [[ -n "$job_id" ]]; then
+								rm lock.txt
+								break 2
+							fi
+							echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Request failed] $1"
+							message=$(echo "$request" | grep -E -A 1 "<h2>" | tail -1 | sed -Ee 's|</?p>||g')
+						fi
+						if [[ -z "$message" ]]; then
+							if [[ "$request" =~ "429 Too Many Requests" ]]; then
+								echo "$request"
+								sleep 20
+							else
+								sleep 5
+								rm lock.txt
+								break
+							fi
+						else
+							echo "$message"
+							if [[ "$message" =~ "You have already reached the limit of active sessions" || "$message" =~ "Cannot start capture" ]]; then
+								:
+							elif [[ "$message" =~ "You cannot make more than "[1-9][0-9,]*" captures per day" ]]; then
+								rm lock.txt
+								touch daily_limit.txt
+								echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
+								echo "$1" >> failed.txt
+								return 1
+							else
+								rm lock.txt
+								echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
+								echo "$(date -u '+%Y-%m-%d %H:%M:%S') $1" >> invalid.log
+								echo "$message" >> invalid.log
+								return 1
+							fi
+						fi
+					done
+				else
+					# If another process has already created lock.txt, wait for the other process to remove it
+					while [[ -f lock.txt ]]; do
+						sleep 5
+						((lock_wait+=5))
+						if ((lock_wait > 120)); then
+							echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
+							echo "$1" >> failed.txt
+							return 1
+						fi
+					done
+				fi
 			fi
 		done
 		echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job submitted] $1"
@@ -171,24 +278,22 @@ function capture(){
 			delay="0"
 		fi
 		local start_time=`date +%s`
-		local json_finished="0"
-		while [[ "$json_finished" == "0" ]]; do
-			# Loop exit conditions:
-			# - Forced exit of process upon error ("return 1")
-			# - Job complete or SPN internal error (json_finished=1)
+		local status
+		local status_ext
+		while :; do
 			sleep "$(<status_rate.txt)"
-			local request=$(curl -s -m 60 "https://web.archive.org/save/status/$job_id")
-			local status=$(echo "$request" | grep -Eo '"status":"([^"\\]|\\["\\])*"' | head -1)
-			if ! [[ -n "$status" ]]; then
+			request=$(curl -s -m 60 "https://web.archive.org/save/status/$job_id")
+			status=$(echo "$request" | grep -Eo '"status":"([^"\\]|\\["\\])*"' | head -1)
+			if [[ -z "$status" ]]; then
 				echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Status request failed] $1"
 				if [[ "$request" =~ "429 Too Many Requests" ]]; then
 					echo "$request"
 					sleep 20
 				fi
 				sleep "$(<status_rate.txt)"
-				local request=$(curl -s -m 60 "https://web.archive.org/save/status/$job_id")
-				local status=$(echo "$request" | grep -Eo '"status":"([^"\\]|\\["\\])*"' | head -1)
-				if ! [[ -n "$status" ]]; then
+				request=$(curl -s -m 60 "https://web.archive.org/save/status/$job_id")
+				status=$(echo "$request" | grep -Eo '"status":"([^"\\]|\\["\\])*"' | head -1)
+				if [[ -z "$status" ]]; then
 					echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Status request failed] $1"
 					if [[ "$request" =~ "429 Too Many Requests" ]]; then
 						echo "$request"
@@ -203,79 +308,77 @@ function capture(){
 					fi
 				fi
 			fi
-			if [[ -n "$status" ]]; then
-				if [[ "$status" == '"status":"success"' ]]; then
-					echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job completed] $1"
-					echo "$1" >> success.log
-					timestamp=$(echo "$request" | grep -Eo '"timestamp":"[0-9]*"' | sed -Ee 's/^"timestamp":"(.*)"/\1/g')
-					url=$(echo "$request" | grep -Eo '"original_url":"([^"\\]|\\["\\])*"' | sed -Ee 's/^"original_url":"(.*)"/\1/g;s/\\(["\\])/\1/g')
-					echo "/web/$timestamp/$url" >> captures.log
-					if ! [[ -n "$quiet" ]]; then
-						echo "$request" >> success-json.log
+			if [[ -z "$status" ]]; then
+				echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Unknown error] $1"
+				echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
+				echo "$1" >> failed.txt
+				return 1
+			fi
+			if [[ "$status" == '"status":"success"' ]]; then
+				echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job completed] $1"
+				echo "$1" >> success.log
+				timestamp=$(echo "$request" | grep -Eo '"timestamp":"[0-9]*"' | sed -Ee 's/^"timestamp":"(.*)"/\1/g')
+				url=$(echo "$request" | grep -Eo '"original_url":"([^"\\]|\\["\\])*"' | sed -Ee 's/^"original_url":"(.*)"/\1/g;s/\\(["\\])/\1/g')
+				echo "/web/$timestamp/$url" >> captures.log
+				if [[ -z "$quiet" ]]; then
+					echo "$request" >> success-json.log
+				fi
+				if [[ -n "$outlinks" ]]; then
+					if [[ "$url" != "$1" ]]; then
+						# Prevent the URL from being submitted twice
+						echo "$url" >> index.txt
 					fi
-					if [[ -n "$pattern" ]]; then
-						if ! [[ "$url" == "$1" ]]; then
-							# Prevent the URL from being submitted twice
-							echo "$url" >> index.txt
-						fi
-						# grep matches array of strings (most special characters are converted server-side, but not square brackets)
-						# sed transforms the array into just the URLs separated by line breaks
-						echo "$request" | grep -Eo '"outlinks":\["([^"\\]|\\["\\])*"(,"([^"\\]|\\["\\])*")*\]' | sed -Ee 's/"outlinks":\["(.*)"\]/\1/g;s/(([^"\\]|\\["\\])*)","/\1\
-/g;s/\\(["\\])/\1/g' | grep -E "$pattern" >> outlinks.txt
-					fi
-					json_finished="1"
-					finished="1"
-				elif [[ "$status" == '"status":"pending"' ]]; then
-					if (( $(date +%s) - start_time > 210 + delay )); then
-						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job timed out] $1"
-						json_finished="1"
-					fi
-				elif [[ "$status" == '"status":"error"' ]]; then
-					echo "$request" >> error-json.log
-					local status_ext=$(echo "$request" | grep -Eo '"status_ext":"([^"\\]|\\["\\])*"' | head -1 | sed -Ee 's/"status_ext":"(.*)"/\1/g')
-					if [[ -z "$status_ext" ]]; then
-						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Unknown error] $1"
-						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
-						echo "$1" >> failed.txt
-						return 1
-					fi
-					if [[ "$status_ext" == 'error:filesize-limit' ]]; then
-						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [File size limit of 2 GB exceeded] $1"
-						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
-						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [$status_ext] $1" >> failed.log
-						return 1
-					elif [[ "$status_ext" == 'error:proxy-error' ]]; then
-						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [SPN proxy error] $1"
-					else
-						local message=$(echo "$request" | grep -Eo '"message":"([^"\\]|\\["\\])*"' | sed -Ee 's/"message":"(.*)"/\1/g')
-						if [[ -z "$message" ]]; then
-							echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Unknown error: $status_ext] $1"
-							echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
-							echo "$1" >> failed.txt
-							return 1
-						fi
-						if [[ "$message" == "Live page is not available: chrome-error://chromewebdata/" ]]; then
-							echo "$(date -u '+%Y-%m-%d %H:%M:%S') [SPN internal error] $1"
-						elif [[ "$message" =~ '.* (HTTP status=[45][0-9]*)\.$' ]]; then
-							# HTTP error; assume the URL cannot be archived
-							echo "$(date -u '+%Y-%m-%d %H:%M:%S') [$message] $1"
-							echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
-							echo "$(date -u '+%Y-%m-%d %H:%M:%S') [$status_ext] $1" >> failed.log
-							return 1
-						else
-							echo "$(date -u '+%Y-%m-%d %H:%M:%S') [$message] $1"
-							echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
-							echo "$1" >> failed.txt
-							return 1
-						fi
-					fi
-					json_finished="1"
-				else
+					# grep matches array of strings (most special characters are converted server-side, but not square brackets)
+					# sed transforms the array into just the URLs separated by line breaks
+					echo "$request" | grep -Eo '"outlinks":\["([^"\\]|\\["\\])*"(,"([^"\\]|\\["\\])*")*\]' | sed -Ee 's/"outlinks":\["(.*)"\]/\1/g;s/(([^"\\]|\\["\\])*)","/\1\
+/g;s/\\(["\\])/\1/g' | { [[ -n "$exclude_pattern" ]] && { [[ -n "$pattern" ]] && grep -E "$pattern" | grep -Ev "$exclude_pattern" || grep -Ev "$exclude_pattern"; } || grep -E "$pattern"; } >> outlinks.txt
+				fi
+				return 0
+			elif [[ "$status" == '"status":"pending"' ]]; then
+				if (( $(date +%s) - start_time > 210 + delay )); then
+					echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job timed out] $1"
+					break
+				fi
+			elif [[ "$status" == '"status":"error"' ]]; then
+				echo "$request" >> error-json.log
+				status_ext=$(echo "$request" | grep -Eo '"status_ext":"([^"\\]|\\["\\])*"' | head -1 | sed -Ee 's/"status_ext":"(.*)"/\1/g')
+				if [[ -z "$status_ext" ]]; then
 					echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Unknown error] $1"
 					echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
 					echo "$1" >> failed.txt
 					return 1
 				fi
+				if [[ "$status_ext" == 'error:filesize-limit' ]]; then
+					echo "$(date -u '+%Y-%m-%d %H:%M:%S') [File size limit of 2 GB exceeded] $1"
+					echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
+					echo "$(date -u '+%Y-%m-%d %H:%M:%S') [$status_ext] $1" >> failed.log
+					return 1
+				elif [[ "$status_ext" == 'error:proxy-error' ]]; then
+					echo "$(date -u '+%Y-%m-%d %H:%M:%S') [SPN proxy error] $1"
+				else
+					message=$(echo "$request" | grep -Eo '"message":"([^"\\]|\\["\\])*"' | sed -Ee 's/"message":"(.*)"/\1/g')
+					if [[ -z "$message" ]]; then
+						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Unknown error: $status_ext] $1"
+						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
+						echo "$1" >> failed.txt
+						return 1
+					fi
+					if [[ "$message" == "Live page is not available: chrome-error://chromewebdata/" ]]; then
+						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [SPN internal error] $1"
+					elif [[ "$message" =~ '.* (HTTP status=[45][0-9]*)\.$' ]]; then
+						# HTTP error; assume the URL cannot be archived
+						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [$message] $1"
+						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
+						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [$status_ext] $1" >> failed.log
+						return 1
+					else
+						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [$message] $1"
+						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
+						echo "$1" >> failed.txt
+						return 1
+					fi
+				fi
+				break
 			else
 				echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Unknown error] $1"
 				echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
@@ -285,10 +388,9 @@ function capture(){
 		done
 		((tries++))
 	done
-	if [[ "$finished" == "0" ]]; then
-		echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
-		echo "$1" >> failed.txt
-	fi
+	echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
+	echo "$1" >> failed.txt
+	exit 1
 }
 
 function get_list(){
@@ -296,7 +398,7 @@ function get_list(){
 	mv failed.txt $failed_file
 	touch failed.txt
 
-	if [[ -n "$pattern" ]]; then
+	if [[ -n "$outlinks" ]]; then
 		local failed_list=$(<$failed_file)
 
 		local outlinks_file=outlinks-$(date +%s).txt
@@ -304,6 +406,10 @@ function get_list(){
 		touch outlinks.txt
 		# Remove duplicate lines; reading into string prevents awk from emptying the file
 		awk '!seen [$0]++' <<< "$(<$outlinks_file)" > $outlinks_file
+		# Convert links to HTTPS
+		if [[ -n "$ssl_only" ]]; then
+			sed -Ee 's|^[[:blank:]]*(https?://)?[[:blank:]]*([^[:blank:]]+)|https://\2|g' <<< "$(<$outlinks_file)" > $outlinks_file
+		fi
 		# Remove lines that are already in index.txt
 		local outlinks_list=$(awk '{if (f==1) { r[$0] } else if (! ($0 in r)) { print $0 } } ' f=1 index.txt f=2 $outlinks_file)
 
@@ -327,9 +433,9 @@ repeats=0
 
 # Parallel loop
 if [[ -n "$parallel" ]]; then
-	if ((parallel > 30)); then
-		parallel=30
-		echo "Setting maximum parallel jobs to 30"
+	if ((parallel > 60)); then
+		parallel=60
+		echo "Setting maximum parallel jobs to 60"
 	elif ((parallel < 2)); then
 		parallel=2
 		echo "Setting maximum parallel jobs to 2"
@@ -337,18 +443,18 @@ if [[ -n "$parallel" ]]; then
 	echo "$parallel" > max_parallel_jobs.txt
 	# Overall request rate stays at around 60 per minute
 	echo "$((parallel + 1))" > status_rate.txt
-	loop=1
-	while [[ "$loop" == "1" && ! -f quit.txt ]]; do
+	while [[ ! -f quit.txt ]]; do
 		(
 		hour=`date -u +%H`
 		while IFS='' read -r line || [[ -n "$line" ]]; do
-			capture "$line" & sleep 2
-			extra_wait=0
+			capture "$line" &
+			children_wait=0
 			children=`jobs -p | wc -l`
+			sleep 1
 			while ! (( children < $(<max_parallel_jobs.txt) )); do
 				sleep 1
-				((extra_wait++))
-				if ((extra_wait < 600)); then
+				((children_wait++))
+				if ((children_wait < 600)); then
 					children=`jobs -p | wc -l`
 				else
 					# Wait is longer than 600 seconds; something might be wrong
@@ -377,13 +483,14 @@ if [[ -n "$parallel" ]]; then
 				new_list=$(get_list)
 				if [[ -n "$new_list" ]]; then
 					while IFS='' read -r line2 || [[ -n "$line2" ]]; do
-						capture "$line2" & sleep 2
+						capture "$line2" &
 						children_wait=0
 						children=`jobs -p | wc -l`
+						sleep 1
 						while ! ((children < $(<max_parallel_jobs.txt) )); do
 							sleep 1
-							((extra_wait++))
-							if ((extra_wait < 600)); then
+							((children_wait++))
+							if ((children_wait < 600)); then
 								children=`jobs -p | wc -l`
 							else
 								# Wait is longer than 600 seconds; something might be wrong
@@ -419,8 +526,7 @@ if [[ -n "$parallel" ]]; then
 			((repeats++))
 			if ((repeats > 1)); then
 				if ((repeats > 3)); then
-					# Leave the loop
-					loop=0
+					break
 				else
 					sleep 1800
 				fi
@@ -428,9 +534,8 @@ if [[ -n "$parallel" ]]; then
 		fi
 		list="$new_list"
 		unset new_list
-		if ! [[ -n "$list" ]]; then
-			# Leave the loop
-			loop=0
+		if [[ -z "$list" ]]; then
+			break
 		fi
 	done
 fi
