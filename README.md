@@ -94,6 +94,7 @@ The `.log` files in the data folder of the running script do not affect the scri
 
 * March 18, 2021: Initial release of `spn.sh` 
 * March 28, 2021: Addition of `-a`, `-d`, `-r`, `-s` and `-x` options; code cleanup and minor bug fixes (aborted sessions of the previous version of the script cannot be restarted unless the `-o` flag was used or `index.txt` is manually created)
+* March 29, 2021: Bug fixes
 
 ### Future plans
 
