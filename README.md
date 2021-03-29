@@ -99,5 +99,4 @@ The `.log` files in the data folder of the running script do not affect the scri
 ### Future plans
 
 * Add specialized scripts for specific purposes
-* Improve code to prevent 429 errors in specific circumstances
 * Add data logging/handling for server-side outlinks function
