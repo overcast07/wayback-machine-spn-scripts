@@ -76,8 +76,8 @@ if [[ -n "$resume" ]]; then
 		index=$(cat index.txt outlinks.txt)
 		# Convert links to HTTPS
 		if [[ -n "$ssl_only" ]]; then
-			index=$(echo "$index" | sed -Ee 's|^[[:blank:]]*(https?://)?[[:blank:]]*([^[:blank:]]+)|https://\2|g')
-			success=$(echo "$success" | sed -Ee 's|^[[:blank:]]*(https?://)?[[:blank:]]*([^[:blank:]]+)|https://\2|g')
+			index=$(echo "$index" | sed -Ee 's|^[[:blank:]]*(https?://)?[[:blank:]]*([^[:blank:]]+)|https://\2|g;s|^https://ftp://|ftp://|g')
+			success=$(echo "$success" | sed -Ee 's|^[[:blank:]]*(https?://)?[[:blank:]]*([^[:blank:]]+)|https://\2|g;s|^https://ftp://|ftp://|g')
 		fi
 		# Remove duplicate lines from new index
 		index=$(awk '!seen [$0]++' <<< "$index")
@@ -122,7 +122,7 @@ cd ~/"$dir"
 
 # Convert links to HTTPS
 if [[ -n "$ssl_only" ]]; then
-	list=$(echo "$list" | sed -Ee 's|^[[:blank:]]*(https?://)?[[:blank:]]*([^[:blank:]]+)|https://\2|g')
+	list=$(echo "$list" | sed -Ee 's|^[[:blank:]]*(https?://)?[[:blank:]]*([^[:blank:]]+)|https://\2|g;s|^https://ftp://|ftp://|g')
 fi
 
 # Set POST options
@@ -169,7 +169,7 @@ function capture(){
 				message=$(echo "$request" | grep -Eo '"message":"([^"\\]|\\["\\])*"' | sed -Ee 's/"message":"(.*)"/\1/g')
 			else
 				request=$(curl -s -m 60 -X POST --data-urlencode "url=${1}" -d "${post_data}" "https://web.archive.org/save/")
-				job_id=$(echo "$request" | grep -E 'spn\.watchJob\(' | grep -Eo '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)
+				job_id=$(echo "$request" | grep -E 'spn\.watchJob\(' | grep -Eo '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|spn2-[0-9a-f]*' | head -1)
 				if [[ -n "$job_id" ]]; then
 					break
 				fi
@@ -188,6 +188,11 @@ function capture(){
 						echo "$1" >> failed.txt
 						return 1
 					fi
+				elif [[ "$request" =~ "400 Bad Request" ]]; then
+					echo "$request"
+					echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
+					echo "$(date -u '+%Y-%m-%d %H:%M:%S') $1" >> invalid.log
+					echo "$request" >> invalid.log
 				else
 					sleep 5
 				fi
@@ -221,7 +226,7 @@ function capture(){
 							message=$(echo "$request" | grep -Eo '"message":"([^"\\]|\\["\\])*"' | sed -Ee 's/"message":"(.*)"/\1/g')
 						else
 							request=$(curl -s -m 60 -X POST --data-urlencode "url=${1}" -d "${post_data}" "https://web.archive.org/save/")
-							job_id=$(echo "$request" | grep -E 'spn\.watchJob\(' | grep -Eo '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)
+							job_id=$(echo "$request" | grep -E 'spn\.watchJob\(' | grep -Eo '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|spn2-[0-9a-f]*' | head -1)
 							if [[ -n "$job_id" ]]; then
 								rm lock.txt
 								break 2
@@ -366,7 +371,7 @@ function capture(){
 					fi
 					if [[ "$message" == "Live page is not available: chrome-error://chromewebdata/" ]]; then
 						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [SPN internal error] $1"
-					elif [[ "$message" =~ '.* (HTTP status=[45][0-9]*)\.$' ]]; then
+					elif [[ "$message" =~ ' (HTTP status='[45][0-9]*').'$ ]]; then
 						# HTTP error; assume the URL cannot be archived
 						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [$message] $1"
 						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
@@ -409,7 +414,7 @@ function get_list(){
 		awk '!seen [$0]++' <<< "$(<$outlinks_file)" > $outlinks_file
 		# Convert links to HTTPS
 		if [[ -n "$ssl_only" ]]; then
-			sed -Ee 's|^[[:blank:]]*(https?://)?[[:blank:]]*([^[:blank:]]+)|https://\2|g' <<< "$(<$outlinks_file)" > $outlinks_file
+			sed -Ee 's|^[[:blank:]]*(https?://)?[[:blank:]]*([^[:blank:]]+)|https://\2|g;s|^https://ftp://|ftp://|g' <<< "$(<$outlinks_file)" > $outlinks_file
 		fi
 		# Remove lines that are already in index.txt
 		local outlinks_list=$(awk '{if (f==1) { r[$0] } else if (! ($0 in r)) { print $0 } } ' f=1 index.txt f=2 $outlinks_file)
@@ -443,15 +448,14 @@ if [[ -n "$parallel" ]]; then
 	fi
 	echo "$parallel" > max_parallel_jobs.txt
 	# Overall request rate stays at around 60 per minute
-	echo "$((parallel + 1))" > status_rate.txt
+	echo "$parallel" > status_rate.txt
 	while [[ ! -f quit.txt ]]; do
 		(
 		hour=`date -u +%H`
 		while IFS='' read -r line || [[ -n "$line" ]]; do
-			capture "$line" &
+			capture "$line" & ((children > 2)) && sleep 2.5
 			children_wait=0
 			children=`jobs -p | wc -l`
-			sleep 1
 			while ! (( children < $(<max_parallel_jobs.txt) )); do
 				sleep 1
 				((children_wait++))
@@ -484,10 +488,9 @@ if [[ -n "$parallel" ]]; then
 				new_list=$(get_list)
 				if [[ -n "$new_list" ]]; then
 					while IFS='' read -r line2 || [[ -n "$line2" ]]; do
-						capture "$line2" &
+						capture "$line2" & ((children > 2)) && sleep 2.5
 						children_wait=0
 						children=`jobs -p | wc -l`
-						sleep 1
 						while ! ((children < $(<max_parallel_jobs.txt) )); do
 							sleep 1
 							((children_wait++))
