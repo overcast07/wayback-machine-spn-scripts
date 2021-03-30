@@ -154,7 +154,7 @@ function capture(){
 		local lock_wait=0
 		local start_time=`date +%s`
 		while :; do
-			if (( $(date +%s) - start_time > 210 )); then
+			if (( $(date +%s) - start_time > 300 )); then
 				echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
 				echo "$1" >> failed.txt
 				return 1
@@ -341,7 +341,7 @@ function capture(){
 				fi
 				return 0
 			elif [[ "$status" == '"status":"pending"' ]]; then
-				if (( $(date +%s) - start_time > 210 + delay )); then
+				if (( $(date +%s) - start_time > 300 + delay )); then
 					echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job timed out] $1"
 					break
 				fi
@@ -472,7 +472,7 @@ if [[ -n "$parallel" ]]; then
 			while [[ -f lock.txt ]]; do
 				sleep 2
 				((lock_wait+=2))
-				if ((lock_wait > 210)); then
+				if ((lock_wait > 300)); then
 					rm lock.txt
 				fi
 			done
@@ -507,7 +507,7 @@ if [[ -n "$parallel" ]]; then
 						while [[ -f lock.txt ]]; do
 							sleep 2
 							((lock_wait+=2))
-							if ((lock_wait > 210)); then
+							if ((lock_wait > 300)); then
 								rm lock.txt
 							fi
 						done
