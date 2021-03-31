@@ -193,6 +193,7 @@ function capture(){
 					echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
 					echo "$(date -u '+%Y-%m-%d %H:%M:%S') $1" >> invalid.log
 					echo "$request" >> invalid.log
+					return 1
 				else
 					sleep 5
 				fi
@@ -343,7 +344,9 @@ function capture(){
 			elif [[ "$status" == '"status":"pending"' ]]; then
 				if (( $(date +%s) - start_time > 300 + delay )); then
 					echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job timed out] $1"
-					break
+					echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
+					echo "$1" >> failed.txt
+					return 1
 				fi
 			elif [[ "$status" == '"status":"error"' ]]; then
 				echo "$request" >> error-json.log
