@@ -211,9 +211,7 @@ function capture(){
 					echo "$request" >> invalid.log
 					return 1
 				elif ! : &>/dev/null </dev/tcp/127.0.0.1/$tor_port; then
-					echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
-					echo "$1" >> failed.txt
-					return 1
+					break 2
 				else
 					sleep 5
 				fi
@@ -264,9 +262,7 @@ function capture(){
 								echo "$request"
 								kill -HUP $tor_pid
 							elif ! : &>/dev/null </dev/tcp/127.0.0.1/$tor_port; then
-								echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
-								echo "$1" >> failed.txt
-								return 1
+								break 3
 							else
 								sleep 5
 								rm lock.txt
@@ -325,9 +321,7 @@ function capture(){
 					echo "$request"
 					kill -HUP $tor_pid
 				elif ! : &>/dev/null </dev/tcp/127.0.0.1/$tor_port; then
-					echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
-					echo "$1" >> failed.txt
-					return 1
+					break 2
 				fi
 				sleep "$(<status_rate.txt)"
 				request=$(curl -s -m 60 -x socks5h://127.0.0.1:$tor_port/ "https://web.archive.org/save/status/$job_id")
@@ -340,9 +334,7 @@ function capture(){
 						status='"status":"pending"'
 						# Fake status response to allow while loop to continue
 					elif ! : &>/dev/null </dev/tcp/127.0.0.1/$tor_port; then
-						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
-						echo "$1" >> failed.txt
-						return 1
+						break 2
 					else
 						echo "$request" >> unknown-json.log
 						break 2
