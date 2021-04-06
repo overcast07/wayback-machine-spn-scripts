@@ -48,7 +48,6 @@ while getopts 'a:d:no:p:qr:sx:' flag; do
 done
 shift "$((OPTIND-1))"
 
-
 if [[ -n "$resume" ]]; then
 	# There should not be any arguments
 	if [[ -n "$1" ]]; then
@@ -155,9 +154,7 @@ function capture(){
 		local start_time=`date +%s`
 		while :; do
 			if (( $(date +%s) - start_time > 300 )); then
-				echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
-				echo "$1" >> failed.txt
-				return 1
+				break 2
 			fi
 			if [[ -n "$auth" ]]; then
 				request=$(curl -s -m 60 -X POST --data-urlencode "url=${1}" -d "${post_data}" -H "Accept: application/json" -H "Authorization: LOW ${auth}" "https://web.archive.org/save/")
@@ -184,9 +181,7 @@ function capture(){
 						sleep 20
 						rm lock.txt
 					else
-						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
-						echo "$1" >> failed.txt
-						return 1
+						break 2
 					fi
 				elif [[ "$request" =~ "400 Bad Request" ]]; then
 					echo "$request"
@@ -202,14 +197,13 @@ function capture(){
 				if ! [[ "$message" =~ "You have already reached the limit of active sessions" || "$message" =~ "Cannot start capture" ]]; then
 					if [[ "$message" =~ "You cannot make more than "[1-9][0-9,]*" captures per day" ]]; then
 						touch daily_limit.txt
-						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
-						echo "$1" >> failed.txt
+						break 2
 					else
 						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
 						echo "$(date -u '+%Y-%m-%d %H:%M:%S') $1" >> invalid.log
 						echo "$message" >> invalid.log
+						return 1
 					fi
-					return 1
 				fi
 				if [[ ! -f lock.txt ]]; then
 					touch lock.txt
@@ -251,9 +245,7 @@ function capture(){
 							elif [[ "$message" =~ "You cannot make more than "[1-9][0-9,]*" captures per day" ]]; then
 								rm lock.txt
 								touch daily_limit.txt
-								echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
-								echo "$1" >> failed.txt
-								return 1
+								break 3
 							else
 								rm lock.txt
 								echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
@@ -269,9 +261,7 @@ function capture(){
 						sleep 5
 						((lock_wait+=5))
 						if ((lock_wait > 120)); then
-							echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
-							echo "$1" >> failed.txt
-							return 1
+							break 3
 						fi
 					done
 				fi
@@ -308,18 +298,15 @@ function capture(){
 						status='"status":"pending"'
 						# Fake status response to allow while loop to continue
 					else
-						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
 						echo "$request" >> unknown-json.log
-						echo "$1" >> failed.txt
-						return 1
+						break 2
 					fi
 				fi
 			fi
 			if [[ -z "$status" ]]; then
 				echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Unknown error] $1"
-				echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
-				echo "$1" >> failed.txt
-				return 1
+				echo "$request" >> unknown-json.log
+				break 2
 			fi
 			if [[ "$status" == '"status":"success"' ]]; then
 				echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job completed] $1"
@@ -344,18 +331,14 @@ function capture(){
 			elif [[ "$status" == '"status":"pending"' ]]; then
 				if (( $(date +%s) - start_time > 300 + delay )); then
 					echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job timed out] $1"
-					echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
-					echo "$1" >> failed.txt
-					return 1
+					break 2
 				fi
 			elif [[ "$status" == '"status":"error"' ]]; then
 				echo "$request" >> error-json.log
 				status_ext=$(echo "$request" | grep -Eo '"status_ext":"([^"\\]|\\["\\])*"' | head -1 | sed -Ee 's/"status_ext":"(.*)"/\1/g')
 				if [[ -z "$status_ext" ]]; then
 					echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Unknown error] $1"
-					echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
-					echo "$1" >> failed.txt
-					return 1
+					break 2
 				fi
 				if [[ "$status_ext" == 'error:filesize-limit' ]]; then
 					echo "$(date -u '+%Y-%m-%d %H:%M:%S') [File size limit of 2 GB exceeded] $1"
@@ -368,12 +351,15 @@ function capture(){
 					message=$(echo "$request" | grep -Eo '"message":"([^"\\]|\\["\\])*"' | sed -Ee 's/"message":"(.*)"/\1/g')
 					if [[ -z "$message" ]]; then
 						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Unknown error: $status_ext] $1"
-						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
-						echo "$1" >> failed.txt
-						return 1
+						break 2
 					fi
 					if [[ "$message" == "Live page is not available: chrome-error://chromewebdata/" ]]; then
 						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [SPN internal error] $1"
+					elif [[ "$message" =~ ' (HTTP status='(40[89]|429|50[023478])').'$ ]]; then
+						# HTTP status 408, 409, 429, 500, 502, 503, 504, 507 or 508
+						# URL may become available later
+						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [$message] $1"
+						break 2
 					elif [[ "$message" =~ ' (HTTP status='[45][0-9]*').'$ ]]; then
 						# HTTP error; assume the URL cannot be archived
 						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [$message] $1"
@@ -382,17 +368,13 @@ function capture(){
 						return 1
 					else
 						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [$message] $1"
-						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
-						echo "$1" >> failed.txt
-						return 1
+						break 2
 					fi
 				fi
 				break
 			else
 				echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Unknown error] $1"
-				echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
-				echo "$1" >> failed.txt
-				return 1
+				break 2
 			fi
 		done
 		((tries++))
