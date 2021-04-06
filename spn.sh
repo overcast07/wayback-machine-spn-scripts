@@ -278,9 +278,9 @@ function capture(){
 								:
 							elif [[ "$message" =~ "You cannot make more than "[1-9][0-9,]*" captures per day" ]]; then
 								if [[ -n "$auth" ]]; then
-                  rm lock.txt
+									rm lock.txt
 									touch daily_limit.txt
-                  break 3
+									break 3
 								else
 									kill -HUP $tor_pid
 								fi
