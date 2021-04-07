@@ -23,7 +23,7 @@ Options:
  -a auth        S3 API keys, in the form accesskey:secret
                 (get account keys at https://archive.org/account/s3.php)
 
- -c args        pass arbitrary arguments to curl
+ -c args        pass additional arguments to curl
 
  -d data        capture request options, or other arbitrary POST data
 
@@ -229,10 +229,10 @@ function capture(){
 			if [[ -z "$message" ]]; then
 				if [[ "$request" =~ "429 Too Many Requests" ]]; then
 					echo "$request"
-					if [[ ! -f lock.txt ]]; then
-						touch lock.txt
+					if [[ ! -f lock$f.txt ]]; then
+						touch lock$f.txt
 						sleep 20
-						rm lock.txt
+						rm lock$f.txt
 					else
 						break 2
 					fi
@@ -249,7 +249,7 @@ function capture(){
 				echo "$message"
 				if ! [[ "$message" =~ "You have already reached the limit of active sessions" || "$message" =~ "Cannot start capture" ]]; then
 					if [[ "$message" =~ "You cannot make more than "[1-9][0-9,]*" captures per day" ]]; then
-						touch daily_limit.txt
+						touch daily_limit$f.txt
 						break 2
 					else
 						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
@@ -258,16 +258,16 @@ function capture(){
 						return 1
 					fi
 				fi
-				if [[ ! -f lock.txt ]]; then
-					touch lock.txt
-					while [[ -f lock.txt ]]; do
+				if [[ ! -f lock$f.txt ]]; then
+					touch lock$f.txt
+					while [[ -f lock$f.txt ]]; do
 						# Retry the request until either the job is submitted or a different error is received
 						sleep 2
 						if [[ -n "$auth" ]]; then
 							request=$(curl "${curl_args[@]}" -s -m 60 -X POST --data-urlencode "url=${1}" -d "${post_data}" -H "Accept: application/json" -H "Authorization: LOW ${auth}" "https://web.archive.org/save/")
 							job_id=$(echo "$request" | grep -Eo '"job_id":"([^"\\]|\\["\\])*"' | head -1 | sed -Ee 's/"job_id":"(.*)"/\1/g')
 							if [[ -n "$job_id" ]]; then
-								rm lock.txt
+								rm lock$f.txt
 								break 2
 							fi
 							echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Request failed] $1"
@@ -276,7 +276,7 @@ function capture(){
 							request=$(curl "${curl_args[@]}" -s -m 60 -X POST --data-urlencode "url=${1}" -d "${post_data}" "https://web.archive.org/save/")
 							job_id=$(echo "$request" | grep -E 'spn\.watchJob\(' | grep -Eo '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|spn2-[0-9a-f]*' | head -1)
 							if [[ -n "$job_id" ]]; then
-								rm lock.txt
+								rm lock$f.txt
 								break 2
 							fi
 							echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Request failed] $1"
@@ -288,7 +288,7 @@ function capture(){
 								sleep 20
 							else
 								sleep 5
-								rm lock.txt
+								rm lock$f.txt
 								break
 							fi
 						else
@@ -296,11 +296,11 @@ function capture(){
 							if [[ "$message" =~ "You have already reached the limit of active sessions" || "$message" =~ "Cannot start capture" ]]; then
 								:
 							elif [[ "$message" =~ "You cannot make more than "[1-9][0-9,]*" captures per day" ]]; then
-								rm lock.txt
-								touch daily_limit.txt
+								rm lock$f.txt
+								touch daily_limit$f.txt
 								break 3
 							else
-								rm lock.txt
+								rm lock$f.txt
 								echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
 								echo "$(date -u '+%Y-%m-%d %H:%M:%S') $1" >> invalid.log
 								echo "$message" >> invalid.log
@@ -310,7 +310,7 @@ function capture(){
 					done
 				else
 					# If another process has already created lock.txt, wait for the other process to remove it
-					while [[ -f lock.txt ]]; do
+					while [[ -f lock$f.txt ]]; do
 						sleep 5
 						((lock_wait+=5))
 						if ((lock_wait > 120)); then
@@ -513,17 +513,17 @@ if [[ -n "$parallel" ]]; then
 				fi
 			done
 			lock_wait=0
-			while [[ -f lock.txt ]]; do
+			while [[ -f lock$f.txt ]]; do
 				sleep 2
 				((lock_wait+=2))
 				if ((lock_wait > 300)); then
-					rm lock.txt
+					rm lock$f.txt
 				fi
 			done
-			if [[ -f daily_limit.txt ]]; then
+			if [[ -f daily_limit$f.txt ]]; then
 				echo "$(date -u '+%Y-%m-%d %H:%M:%S') Pausing for $(( (3600 - $(date +%s) % 3600) / 60 )) minutes"
 				sleep $(( 3600 - $(date +%s) % 3600 ))
-				rm daily_limit.txt
+				rm daily_limit$f.txt
 			fi
 			((counter++))
 			# Check failures and outlinks approximately every hour
@@ -548,17 +548,17 @@ if [[ -n "$parallel" ]]; then
 							fi
 						done
 						lock_wait=0
-						while [[ -f lock.txt ]]; do
+						while [[ -f lock$f.txt ]]; do
 							sleep 2
 							((lock_wait+=2))
 							if ((lock_wait > 300)); then
-								rm lock.txt
+								rm lock$f.txt
 							fi
 						done
-						if [[ -f daily_limit.txt ]]; then
+						if [[ -f daily_limit$f.txt ]]; then
 							echo "$(date -u '+%Y-%m-%d %H:%M:%S') Pausing for $(( (3600 - $(date +%s) % 3600) / 60 )) minutes"
 							sleep $(( 3600 - $(date +%s) % 3600 ))
-							rm daily_limit.txt
+							rm daily_limit$f.txt
 						fi
 					done <<< "$new_list"
 					unset new_list
