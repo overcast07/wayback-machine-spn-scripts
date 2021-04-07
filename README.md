@@ -26,7 +26,7 @@ There exist several alternatives to this script, including the Python program [s
 
 ### Installation
 
-Download the script and make it executable with the command `chmod u+x spn.sh`.
+Download the script and make it executable with the command `chmod a+x spn.sh`.
 
 ### Dependencies
 
@@ -45,14 +45,30 @@ The script may sometimes not output to the console or to the log files for an ex
 ```
  -a auth        S3 API keys, in the form accesskey:secret
                 (get account keys at https://archive.org/account/s3.php)
+
+ -c args        pass additional arguments to curl
+
  -d data        capture request options, or other arbitrary POST data
+
+ -f folder      use a custom location for the data folder
+                (some files will be overwritten or deleted during the session)
+
+ -i suffix      add a suffix to the name of the data folder
+                (if -f is used, -i is ignored)
+
  -n             tell Save Page Now not to save errors into the Wayback Machine
+
  -o pattern     save detected capture outlinks matching regex (ERE) pattern
+
  -p N           run at most N capture jobs in parallel (off by default)
+
  -q             discard JSON for completed jobs instead of writing to log file
+
  -r folder      resume with the remaining URLs of an aborted session
                 (aborted session's settings do not carry over)
+
  -s             use HTTPS for all captures and change HTTP input URLs to HTTPS
+
  -x pattern     save detected capture outlinks not matching regex (ERE) pattern
                 (if -o is also used, outlinks are filtered using both regexes)
 ```
@@ -60,7 +76,10 @@ The script may sometimes not output to the console or to the log files for an ex
 All flags should be placed before arguments, but flags may be used in any order. If a string contains characters that need to be escaped in Bash, wrap the string in quotes; e.g. `-x '&action=edit'`.
 
 * The `-a` flag allows the user to log in to an archive.org account with [S3 API keys](https://archive.org/account/s3.php). The keys should be provided in the form `accesskey:secret` (e.g. `-a YT2VJkcJV7ZuhA9h:7HeAKDvqN7ggrC3N`). If this flag is used, some login-only options can be enabled with the `-d` flag, in particular `capture_outlinks=1` and `capture_screenshot=1`. Additionally, much less data is downloaded when submitting URLs, and the captures will count towards the archive.org account's daily limit instead of that of the user's IP.
+* The `-c` flag allows arbitrary options to be used for [`curl`](https://curl.se/), which the script uses to send HTTP requests. For example, `-c '-x socks5h://127.0.0.1:9150/'` could be used to proxy all connections through the Tor network via [Tor Browser](https://www.torproject.org/). Documentation for `curl` is available on [the project website](https://curl.se/docs/), as well as through the commands `curl -h` and `man curl`.
 * The `-d` flag allows the use of Save Page Now's [capture request options](https://docs.google.com/document/d/1Nsv52MvSjbLb2PCpHlat0gkzw0EvtSgpKHu4mk0MnrA/edit#heading=h.uu61fictja6r), which should be formatted as POST data (e.g. `-d 'force_get=1&if_not_archived_within=86400'`). Documentation for the available options is available in the linked Google Drive document. Some options, in particular `capture_outlinks=1` and `capture_screenshot=1`, require authentication through the `-a` flag. The options are set for all submitted URLs. By default, the script sets the option `capture_all=on`; the `-n` flag disables it, but it can also be disabled by including `capture_all=0` in the `-d` flag's argument. Note that as of March 2021, the `outlinks_availability=1` option does not appear to work as described, and other parts of the documentation may be out of date.
+* The `-f` flag may be used to set a custom location for the data folder, which may be anywhere in the file system; the argument should be the location of the folder. The flag is primarily meant for `cron` jobs; as such, the script's behavior is slightly different, in that all `.txt` files other than `failed.txt`, `outlinks.txt` and `index.txt` will have the running script's process ID inserted into their names, in order to allow multiple instances of the script to run in the same folder without interfering with each other (although they will share `failed.txt`, `outlinks.txt` and `index.txt` and will be able to affect each other through those files). The folder may already exist, and it may also contain a previous session's files, which the script may modify (e.g. it will append data to existing log files). In particular, `index.txt` may be overwritten when the script starts. If the folder does not yet exist, it will be created.
+* The `-i` flag appends a suffix to the name of the data folder. Normally, the name is just the Unix timestamp, so adding text (such as a website name) may be helpful for organizing and distinguishing folders. Other than changing the name of the data folder, it has no effect on the script.
 * The `-o` and `-x` flags enable recursive saving of outlinks. To save as many outlinks as possible, use `-o ''`. The argument for each flag should be a POSIX ERE regular expression pattern. If only the `-o` flag is used, then all links matching the provided pattern are saved; if only the `-x` flag is used, then all links _not_ matching the provided pattern are saved; and if both are used, then all links matching the `-o` pattern but not the `-x` pattern are saved. Around every hour, matching outlinks in the JSON received from Save Page Now are added to the list of URLs to be submitted to Save Page Now. If an outlink has already been captured in a previous job, it will not be added to the list. A maximum of 100 outlinks per capture can be sent by Save Page Now, and the maximum number of provided outlinks to certain sites (e.g. outlinks matching `example.com`) may be limited server-side. The `-o` and `-x` flags are separate to the server-side `capture_outlinks=1` option, and will not work if that option is enabled through use of the `-a` and `-d` flags.
 * The `-p` flag sets the maximum number of parallel capture jobs, which can be between 2 and 60. If the flag is not used, capture jobs are not queued simultaneously. (Each submitted URL is queued for a period of time before the URL is actually crawled.) The Save Page Now rate limit will prevent a user from starting another capture job if the user has too many concurrently active jobs (not including queued jobs), so setting the value higher may not always be more efficient. Be careful with using this on websites that may be easily overloaded.
 * The `-n` flag unsets the HTTP POST option `capture_all=on`. This tells Save Page Now not to save error pages to the Wayback Machine. Because the option is set by default when using the web form, the script does the same.
@@ -93,8 +112,10 @@ The `.log` files in the data folder of the running script do not affect the scri
 ## Changelog
 
 * March 18, 2021: Initial release of `spn.sh` 
-* March 28, 2021: Addition of `-a`, `-d`, `-r`, `-s` and `-x` options; code cleanup and minor bug fixes (aborted sessions of the previous version of the script cannot be restarted unless the `-o` flag was used or `index.txt` is manually created)
+* March 28, 2021: Addition of `-a`, `-d`, `-r`, `-s` and `-x` options; code cleanup and bug fixes (aborted sessions of the previous version of the script cannot be restarted unless the `-o` flag was used or `index.txt` is manually created)
 * March 29, 2021: Bug fixes
+* April 6, 2021: Bug fixes and improvement of HTTP error handling
+* April 7, 2021: Addition of `-c`, `-f` and `-i` options; bug fixes
 
 ### Future plans
 
