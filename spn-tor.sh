@@ -1,5 +1,12 @@
 #!/bin/bash
 
+trap "abort" SIGINT SIGTERM
+
+function abort(){
+	kill $tor_pid
+	exit 1
+}
+
 auth=''
 curl_args=()
 post_data=''
@@ -128,6 +135,16 @@ else
 	fi
 fi
 
+parent="spn-data"
+tor_dir="$parent/tor"
+tor_data_dir="$tor_dir/data"
+
+for i in "$parent" "$tor_dir" "$tor_data_dir"; do
+	if [[ ! -d ~/"$i" ]]; then
+		mkdir ~/"$i" || { echo "The folder ~/$i could not be created"; exit 1; }
+	fi
+done
+
 if [[ -n "$custom_dir" ]]; then
 	f="-$$"
 	dir="$custom_dir"
@@ -172,6 +189,20 @@ else
 	cd ~/"$dir"
 fi
 
+# Increment port number until finding one that is not in use
+tor_port=45100
+while : &>/dev/null </dev/tcp/127.0.0.1/$tor_port; do
+	((tor_port++))
+done
+echo "SOCKSPort $tor_port
+DataDirectory $HOME/$tor_data_dir/$tor_port" > ~/"$tor_dir/$tor_port"
+tor -f ~/"$tor_dir/$tor_port" &
+tor_pid=$!
+
+# Wait for the connection to start working
+sleep 1
+curl -s -m 300 -X POST -x socks5h://127.0.0.1:$tor_port/ -H "Accept: application/json" "https://web.archive.org/save/" > /dev/null
+
 # Convert links to HTTPS
 if [[ -n "$ssl_only" ]]; then
 	list=$(echo "$list" | sed -Ee 's|^[[:blank:]]*(https?://)?[[:blank:]]*([^[:blank:]]+)|https://\2|g;s|^https://ftp://|ftp://|g')
@@ -210,7 +241,7 @@ function capture(){
 				break 2
 			fi
 			if [[ -n "$auth" ]]; then
-				request=$(curl "${curl_args[@]}" -s -m 60 -X POST --data-urlencode "url=${1}" -d "${post_data}" -H "Accept: application/json" -H "Authorization: LOW ${auth}" "https://web.archive.org/save/")
+				request=$(curl "${curl_args[@]}" -s -m 60 -X POST --data-urlencode "url=${1}" -d "${post_data}" -x socks5h://127.0.0.1:$tor_port/ -H "Accept: application/json" -H "Authorization: LOW ${auth}" "https://web.archive.org/save/")
 				job_id=$(echo "$request" | grep -Eo '"job_id":"([^"\\]|\\["\\])*"' | head -1 | sed -Ee 's/"job_id":"(.*)"/\1/g')
 				if [[ -n "$job_id" ]]; then
 					break
@@ -218,7 +249,7 @@ function capture(){
 				echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Request failed] $1"
 				message=$(echo "$request" | grep -Eo '"message":"([^"\\]|\\["\\])*"' | sed -Ee 's/"message":"(.*)"/\1/g')
 			else
-				request=$(curl "${curl_args[@]}" -s -m 60 -X POST --data-urlencode "url=${1}" -d "${post_data}" "https://web.archive.org/save/")
+				request=$(curl "${curl_args[@]}" -s -m 60 -X POST --data-urlencode "url=${1}" -d "${post_data}" -x socks5h://127.0.0.1:$tor_port/ "https://web.archive.org/save/")
 				job_id=$(echo "$request" | grep -E 'spn\.watchJob\(' | grep -Eo '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|spn2-[0-9a-f]*' | head -1)
 				if [[ -n "$job_id" ]]; then
 					break
@@ -230,9 +261,7 @@ function capture(){
 				if [[ "$request" =~ "429 Too Many Requests" ]]; then
 					echo "$request"
 					if [[ ! -f lock$f.txt ]]; then
-						touch lock$f.txt
-						sleep 20
-						rm lock$f.txt
+						kill -HUP $tor_pid
 					else
 						break 2
 					fi
@@ -242,6 +271,8 @@ function capture(){
 					echo "$(date -u '+%Y-%m-%d %H:%M:%S') $1" >> invalid.log
 					echo "$request" >> invalid.log
 					return 1
+				elif ! : &>/dev/null </dev/tcp/127.0.0.1/$tor_port; then
+					break 2
 				else
 					sleep 5
 				fi
@@ -249,8 +280,12 @@ function capture(){
 				echo "$message"
 				if ! [[ "$message" =~ "You have already reached the limit of active sessions" || "$message" =~ "Cannot start capture" ]]; then
 					if [[ "$message" =~ "You cannot make more than "[1-9][0-9,]*" captures per day" ]]; then
-						touch daily_limit$f.txt
-						break 2
+						if [[ -n "$auth" ]]; then
+							touch daily_limit$f.txt
+							break 2
+						else
+							kill -HUP $tor_pid
+						fi
 					else
 						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
 						echo "$(date -u '+%Y-%m-%d %H:%M:%S') $1" >> invalid.log
@@ -259,12 +294,12 @@ function capture(){
 					fi
 				fi
 				if [[ ! -f lock$f.txt ]]; then
-					touch lock$f.txt
+					touch lock.txt
 					while [[ -f lock$f.txt ]]; do
 						# Retry the request until either the job is submitted or a different error is received
-						sleep 2
 						if [[ -n "$auth" ]]; then
-							request=$(curl "${curl_args[@]}" -s -m 60 -X POST --data-urlencode "url=${1}" -d "${post_data}" -H "Accept: application/json" -H "Authorization: LOW ${auth}" "https://web.archive.org/save/")
+							sleep 2
+							request=$(curl "${curl_args[@]}" -s -m 60 -X POST --data-urlencode "url=${1}" -d "${post_data}" -x socks5h://127.0.0.1:$tor_port/ -H "Accept: application/json" -H "Authorization: LOW ${auth}" "https://web.archive.org/save/")
 							job_id=$(echo "$request" | grep -Eo '"job_id":"([^"\\]|\\["\\])*"' | head -1 | sed -Ee 's/"job_id":"(.*)"/\1/g')
 							if [[ -n "$job_id" ]]; then
 								rm lock$f.txt
@@ -273,7 +308,8 @@ function capture(){
 							echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Request failed] $1"
 							message=$(echo "$request" | grep -Eo '"message":"([^"\\]|\\["\\])*"' | sed -Ee 's/"message":"(.*)"/\1/g')
 						else
-							request=$(curl "${curl_args[@]}" -s -m 60 -X POST --data-urlencode "url=${1}" -d "${post_data}" "https://web.archive.org/save/")
+							kill -HUP $tor_pid
+							request=$(curl "${curl_args[@]}" -s -m 60 -X POST --data-urlencode "url=${1}" -d "${post_data}" -x socks5h://127.0.0.1:$tor_port/ "https://web.archive.org/save/")
 							job_id=$(echo "$request" | grep -E 'spn\.watchJob\(' | grep -Eo '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|spn2-[0-9a-f]*' | head -1)
 							if [[ -n "$job_id" ]]; then
 								rm lock$f.txt
@@ -285,7 +321,9 @@ function capture(){
 						if [[ -z "$message" ]]; then
 							if [[ "$request" =~ "429 Too Many Requests" ]]; then
 								echo "$request"
-								sleep 20
+								kill -HUP $tor_pid
+							elif ! : &>/dev/null </dev/tcp/127.0.0.1/$tor_port; then
+								break 3
 							else
 								sleep 5
 								rm lock$f.txt
@@ -296,9 +334,13 @@ function capture(){
 							if [[ "$message" =~ "You have already reached the limit of active sessions" || "$message" =~ "Cannot start capture" ]]; then
 								:
 							elif [[ "$message" =~ "You cannot make more than "[1-9][0-9,]*" captures per day" ]]; then
-								rm lock$f.txt
-								touch daily_limit$f.txt
-								break 3
+								if [[ -n "$auth" ]]; then
+									rm lock$f.txt
+									touch daily_limit$f.txt
+									break 3
+								else
+									kill -HUP $tor_pid
+								fi
 							else
 								rm lock$f.txt
 								echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
@@ -332,24 +374,28 @@ function capture(){
 		local status_ext
 		while :; do
 			sleep "$(<status_rate$f.txt)"
-			request=$(curl "${curl_args[@]}" -s -m 60 "https://web.archive.org/save/status/$job_id")
+			request=$(curl "${curl_args[@]}" -s -m 60 -x socks5h://127.0.0.1:$tor_port/ "https://web.archive.org/save/status/$job_id")
 			status=$(echo "$request" | grep -Eo '"status":"([^"\\]|\\["\\])*"' | head -1)
 			if [[ -z "$status" ]]; then
 				echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Status request failed] $1"
 				if [[ "$request" =~ "429 Too Many Requests" ]]; then
 					echo "$request"
-					sleep 20
+					kill -HUP $tor_pid
+				elif ! : &>/dev/null </dev/tcp/127.0.0.1/$tor_port; then
+					break 2
 				fi
 				sleep "$(<status_rate$f.txt)"
-				request=$(curl "${curl_args[@]}" -s -m 60 "https://web.archive.org/save/status/$job_id")
+				request=$(curl "${curl_args[@]}" -s -m 60 -x socks5h://127.0.0.1:$tor_port/ "https://web.archive.org/save/status/$job_id")
 				status=$(echo "$request" | grep -Eo '"status":"([^"\\]|\\["\\])*"' | head -1)
 				if [[ -z "$status" ]]; then
 					echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Status request failed] $1"
 					if [[ "$request" =~ "429 Too Many Requests" ]]; then
 						echo "$request"
-						sleep 20
+						kill -HUP $tor_pid
 						status='"status":"pending"'
 						# Fake status response to allow while loop to continue
+					elif ! : &>/dev/null </dev/tcp/127.0.0.1/$tor_port; then
+						break 2
 					else
 						echo "$request" >> unknown-json.log
 						break 2
@@ -637,3 +683,5 @@ done
 if [[ -n "$custom_dir" ]]; then
 	rm quit$f.txt max_parallel_jobs$f.txt status_rate$f.txt
 fi
+
+kill $tor_pid
