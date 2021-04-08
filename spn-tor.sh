@@ -8,7 +8,10 @@ function abort(){
 }
 
 auth=''
+curl_args=()
 post_data=''
+custom_dir=''
+dir_suffix=''
 no_errors=''
 outlinks=''
 parallel=''
@@ -26,22 +29,41 @@ print_usage() {
 Options:
  -a auth        S3 API keys, in the form accesskey:secret
                 (get account keys at https://archive.org/account/s3.php)
+
+ -c args        pass additional arguments to curl
+
  -d data        capture request options, or other arbitrary POST data
+
+ -f folder      use a custom location for the data folder
+                (some files will be overwritten or deleted during the session)
+
+ -i suffix      add a suffix to the name of the data folder
+                (if -f is used, -i is ignored)
+
  -n             tell Save Page Now not to save errors into the Wayback Machine
+
  -o pattern     save detected capture outlinks matching regex (ERE) pattern
+
  -p N           run at most N capture jobs in parallel (off by default)
+
  -q             discard JSON for completed jobs instead of writing to log file
+
  -r folder      resume with the remaining URLs of an aborted session
                 (aborted session's settings do not carry over)
+
  -s             use HTTPS for all captures and change HTTP input URLs to HTTPS
+
  -x pattern     save detected capture outlinks not matching regex (ERE) pattern
                 (if -o is also used, outlinks are filtered using both regexes)"
 }
 
-while getopts 'a:d:no:p:qr:sx:' flag; do
+while getopts 'a:c:d:f:i:no:p:qr:sx:' flag; do
 	case "${flag}" in
 		a)	auth="$OPTARG" ;;
+		c)	declare -a "curl_args=($OPTARG)" ;;
 		d)	post_data="$OPTARG" ;;
+		f)	custom_dir="$OPTARG" ;;
+		i)	dir_suffix="-$OPTARG" ;;
 		n)	no_errors='true' ;;
 		o)	outlinks='true'; pattern="$OPTARG" ;;
 		p)	parallel="$OPTARG" ;;
@@ -114,19 +136,58 @@ else
 fi
 
 parent="spn-data"
-month=$(date -u +%Y-%m)
-now=$(date +%s)
 tor_dir="$parent/tor"
-tor_data_dir="$parent/tor/data"
+tor_data_dir="$tor_dir/data"
 
-for i in "$parent" "$parent/$month" "$parent/$month/$now" "$tor_dir" "$tor_data_dir"; do
+for i in "$parent" "$tor_dir" "$tor_data_dir"; do
 	if [[ ! -d ~/"$i" ]]; then
 		mkdir ~/"$i" || { echo "The folder ~/$i could not be created"; exit 1; }
 	fi
 done
-dir="$parent/$month/$now"
-echo "Created data folder ~/$dir"
-cd ~/"$dir"
+
+if [[ -n "$custom_dir" ]]; then
+	f="-$$"
+	dir="$custom_dir"
+	if [[ ! -d "$dir" ]]; then
+		mkdir "$dir" || { echo "The folder $dir could not be created"; exit 1; }
+		echo "Created data folder $dir"
+	else
+		echo "Using the existing data folder $dir"
+	fi
+	cd "$dir"
+
+	for i in quit$f.txt max_parallel_jobs$f.txt status_rate$f.txt; do
+		if [[ -f "$i" ]]; then
+			rm "$i"
+		fi
+	done
+else
+	f=''
+	parent="spn-data"
+	month=$(date -u +%Y-%m)
+	now=$(date +%s)
+
+	for i in "$parent" "$parent/$month"; do
+		if [[ ! -d ~/"$i" ]]; then
+			mkdir ~/"$i" || { echo "The folder ~/$i could not be created"; exit 1; }
+		fi
+	done
+
+	# Wait between 0 and 0.07 seconds to try to avoid a collision, in case another session is started at exactly the same time
+	sleep ".0$((RANDOM % 8))"
+
+	# Wait between 0.1 and 0.73 seconds if the folder already exists
+	while [[ -d ~/"$parent/$month/$now$dir_suffix" ]]; do
+		sleep ".$((10 + RANDOM % 64))"
+		now=$(date +%s)
+	done
+	dir="$parent/$month/$now$dir_suffix"
+
+	# Try to create the folder
+	mkdir ~/"$dir" || { echo "The folder ~/$dir could not be created"; exit 1; }
+	echo "Created data folder ~/$dir"
+	cd ~/"$dir"
+fi
 
 # Increment port number until finding one that is not in use
 tor_port=45100
@@ -180,7 +241,7 @@ function capture(){
 				break 2
 			fi
 			if [[ -n "$auth" ]]; then
-				request=$(curl -s -m 60 -X POST --data-urlencode "url=${1}" -d "${post_data}" -x socks5h://127.0.0.1:$tor_port/ -H "Accept: application/json" -H "Authorization: LOW ${auth}" "https://web.archive.org/save/")
+				request=$(curl "${curl_args[@]}" -s -m 60 -X POST --data-urlencode "url=${1}" -d "${post_data}" -x socks5h://127.0.0.1:$tor_port/ -H "Accept: application/json" -H "Authorization: LOW ${auth}" "https://web.archive.org/save/")
 				job_id=$(echo "$request" | grep -Eo '"job_id":"([^"\\]|\\["\\])*"' | head -1 | sed -Ee 's/"job_id":"(.*)"/\1/g')
 				if [[ -n "$job_id" ]]; then
 					break
@@ -188,7 +249,7 @@ function capture(){
 				echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Request failed] $1"
 				message=$(echo "$request" | grep -Eo '"message":"([^"\\]|\\["\\])*"' | sed -Ee 's/"message":"(.*)"/\1/g')
 			else
-				request=$(curl -s -m 60 -X POST --data-urlencode "url=${1}" -d "${post_data}" -x socks5h://127.0.0.1:$tor_port/ "https://web.archive.org/save/")
+				request=$(curl "${curl_args[@]}" -s -m 60 -X POST --data-urlencode "url=${1}" -d "${post_data}" -x socks5h://127.0.0.1:$tor_port/ "https://web.archive.org/save/")
 				job_id=$(echo "$request" | grep -E 'spn\.watchJob\(' | grep -Eo '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|spn2-[0-9a-f]*' | head -1)
 				if [[ -n "$job_id" ]]; then
 					break
@@ -199,7 +260,7 @@ function capture(){
 			if [[ -z "$message" ]]; then
 				if [[ "$request" =~ "429 Too Many Requests" ]]; then
 					echo "$request"
-					if [[ ! -f lock.txt ]]; then
+					if [[ ! -f lock$f.txt ]]; then
 						kill -HUP $tor_pid
 					else
 						break 2
@@ -220,7 +281,7 @@ function capture(){
 				if ! [[ "$message" =~ "You have already reached the limit of active sessions" || "$message" =~ "Cannot start capture" ]]; then
 					if [[ "$message" =~ "You cannot make more than "[1-9][0-9,]*" captures per day" ]]; then
 						if [[ -n "$auth" ]]; then
-							touch daily_limit.txt
+							touch daily_limit$f.txt
 							break 2
 						else
 							kill -HUP $tor_pid
@@ -232,26 +293,26 @@ function capture(){
 						return 1
 					fi
 				fi
-				if [[ ! -f lock.txt ]]; then
-					touch lock.txt
-					while [[ -f lock.txt ]]; do
+				if [[ ! -f lock$f.txt ]]; then
+					touch lock$f.txt
+					while [[ -f lock$f.txt ]]; do
 						# Retry the request until either the job is submitted or a different error is received
 						if [[ -n "$auth" ]]; then
 							sleep 2
-							request=$(curl -s -m 60 -X POST --data-urlencode "url=${1}" -d "${post_data}" -x socks5h://127.0.0.1:$tor_port/ -H "Accept: application/json" -H "Authorization: LOW ${auth}" "https://web.archive.org/save/")
+							request=$(curl "${curl_args[@]}" -s -m 60 -X POST --data-urlencode "url=${1}" -d "${post_data}" -x socks5h://127.0.0.1:$tor_port/ -H "Accept: application/json" -H "Authorization: LOW ${auth}" "https://web.archive.org/save/")
 							job_id=$(echo "$request" | grep -Eo '"job_id":"([^"\\]|\\["\\])*"' | head -1 | sed -Ee 's/"job_id":"(.*)"/\1/g')
 							if [[ -n "$job_id" ]]; then
-								rm lock.txt
+								rm lock$f.txt
 								break 2
 							fi
 							echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Request failed] $1"
 							message=$(echo "$request" | grep -Eo '"message":"([^"\\]|\\["\\])*"' | sed -Ee 's/"message":"(.*)"/\1/g')
 						else
 							kill -HUP $tor_pid
-							request=$(curl -s -m 60 -X POST --data-urlencode "url=${1}" -d "${post_data}" -x socks5h://127.0.0.1:$tor_port/ "https://web.archive.org/save/")
+							request=$(curl "${curl_args[@]}" -s -m 60 -X POST --data-urlencode "url=${1}" -d "${post_data}" -x socks5h://127.0.0.1:$tor_port/ "https://web.archive.org/save/")
 							job_id=$(echo "$request" | grep -E 'spn\.watchJob\(' | grep -Eo '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|spn2-[0-9a-f]*' | head -1)
 							if [[ -n "$job_id" ]]; then
-								rm lock.txt
+								rm lock$f.txt
 								break 2
 							fi
 							echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Request failed] $1"
@@ -265,7 +326,7 @@ function capture(){
 								break 3
 							else
 								sleep 5
-								rm lock.txt
+								rm lock$f.txt
 								break
 							fi
 						else
@@ -274,14 +335,14 @@ function capture(){
 								:
 							elif [[ "$message" =~ "You cannot make more than "[1-9][0-9,]*" captures per day" ]]; then
 								if [[ -n "$auth" ]]; then
-									rm lock.txt
-									touch daily_limit.txt
+									rm lock$f.txt
+									touch daily_limit$f.txt
 									break 3
 								else
 									kill -HUP $tor_pid
 								fi
 							else
-								rm lock.txt
+								rm lock$f.txt
 								echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
 								echo "$(date -u '+%Y-%m-%d %H:%M:%S') $1" >> invalid.log
 								echo "$message" >> invalid.log
@@ -291,7 +352,7 @@ function capture(){
 					done
 				else
 					# If another process has already created lock.txt, wait for the other process to remove it
-					while [[ -f lock.txt ]]; do
+					while [[ -f lock$f.txt ]]; do
 						sleep 5
 						((lock_wait+=5))
 						if ((lock_wait > 120)); then
@@ -312,8 +373,8 @@ function capture(){
 		local status
 		local status_ext
 		while :; do
-			sleep "$(<status_rate.txt)"
-			request=$(curl -s -m 60 -x socks5h://127.0.0.1:$tor_port/ "https://web.archive.org/save/status/$job_id")
+			sleep "$(<status_rate$f.txt)"
+			request=$(curl "${curl_args[@]}" -s -m 60 -x socks5h://127.0.0.1:$tor_port/ "https://web.archive.org/save/status/$job_id")
 			status=$(echo "$request" | grep -Eo '"status":"([^"\\]|\\["\\])*"' | head -1)
 			if [[ -z "$status" ]]; then
 				echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Status request failed] $1"
@@ -323,8 +384,8 @@ function capture(){
 				elif ! : &>/dev/null </dev/tcp/127.0.0.1/$tor_port; then
 					break 2
 				fi
-				sleep "$(<status_rate.txt)"
-				request=$(curl -s -m 60 -x socks5h://127.0.0.1:$tor_port/ "https://web.archive.org/save/status/$job_id")
+				sleep "$(<status_rate$f.txt)"
+				request=$(curl "${curl_args[@]}" -s -m 60 -x socks5h://127.0.0.1:$tor_port/ "https://web.archive.org/save/status/$job_id")
 				status=$(echo "$request" | grep -Eo '"status":"([^"\\]|\\["\\])*"' | head -1)
 				if [[ -z "$status" ]]; then
 					echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Status request failed] $1"
@@ -452,8 +513,14 @@ $outlinks_list"
 				echo "$outlinks_list"
 			fi
 		fi
+		if [[ -z "$(<$outlinks_file)" ]]; then
+			rm $outlinks_file
+		fi
 	else
 		echo "$(<$failed_file)"
+	fi
+	if [[ -z "$failed_list" ]]; then
+		rm $failed_file
 	fi
 }
 
@@ -469,17 +536,17 @@ if [[ -n "$parallel" ]]; then
 		parallel=2
 		echo "Setting maximum parallel jobs to 2"
 	fi
-	echo "$parallel" > max_parallel_jobs.txt
+	echo "$parallel" > max_parallel_jobs$f.txt
 	# Overall request rate stays at around 60 per minute
-	echo "$parallel" > status_rate.txt
-	while [[ ! -f quit.txt ]]; do
+	echo "$parallel" > status_rate$f.txt
+	while [[ ! -f quit$f.txt ]]; do
 		(
 		hour=`date -u +%H`
 		while IFS='' read -r line || [[ -n "$line" ]]; do
 			capture "$line" & ((children > 2)) && sleep 2.5
 			children_wait=0
 			children=`jobs -p | wc -l`
-			while ! (( children < $(<max_parallel_jobs.txt) )); do
+			while ! (( children < $(<max_parallel_jobs$f.txt) )); do
 				sleep 1
 				((children_wait++))
 				if ((children_wait < 600)); then
@@ -488,25 +555,25 @@ if [[ -n "$parallel" ]]; then
 					# Wait is longer than 600 seconds; something might be wrong
 					# Increase limit and ignore the problem for now
 					children=0
-					echo $(( $(<max_parallel_jobs.txt) + 1 )) > max_parallel_jobs.txt
+					echo $(( $(<max_parallel_jobs$f.txt) + 1 )) > max_parallel_jobs$f.txt
 				fi
 			done
 			lock_wait=0
-			while [[ -f lock.txt ]]; do
+			while [[ -f lock$f.txt ]]; do
 				sleep 2
 				((lock_wait+=2))
 				if ((lock_wait > 300)); then
-					rm lock.txt
+					rm lock$f.txt
 				fi
 			done
-			if [[ -f daily_limit.txt ]]; then
+			if [[ -f daily_limit$f.txt ]]; then
 				echo "$(date -u '+%Y-%m-%d %H:%M:%S') Pausing for $(( (3600 - $(date +%s) % 3600) / 60 )) minutes"
 				sleep $(( 3600 - $(date +%s) % 3600 ))
-				rm daily_limit.txt
+				rm daily_limit$f.txt
 			fi
 			((counter++))
 			# Check failures and outlinks approximately every hour
-			if ! ((counter % 50)) && ! [[ `date -u +%H` == "$hour" || -f quit.txt ]]; then
+			if ! ((counter % 50)) && ! [[ `date -u +%H` == "$hour" || -f quit$f.txt ]]; then
 				hour=`date -u +%H`
 				new_list=$(get_list)
 				if [[ -n "$new_list" ]]; then
@@ -514,7 +581,7 @@ if [[ -n "$parallel" ]]; then
 						capture "$line2" & ((children > 2)) && sleep 2.5
 						children_wait=0
 						children=`jobs -p | wc -l`
-						while ! ((children < $(<max_parallel_jobs.txt) )); do
+						while ! ((children < $(<max_parallel_jobs$f.txt) )); do
 							sleep 1
 							((children_wait++))
 							if ((children_wait < 600)); then
@@ -523,21 +590,21 @@ if [[ -n "$parallel" ]]; then
 								# Wait is longer than 600 seconds; something might be wrong
 								# Increase limit and ignore the problem for now
 								children=0
-								echo $(( $(<max_parallel_jobs.txt) + 1 )) > max_parallel_jobs.txt
+								echo $(( $(<max_parallel_jobs$f.txt) + 1 )) > max_parallel_jobs$f.txt
 							fi
 						done
 						lock_wait=0
-						while [[ -f lock.txt ]]; do
+						while [[ -f lock$f.txt ]]; do
 							sleep 2
 							((lock_wait+=2))
 							if ((lock_wait > 300)); then
-								rm lock.txt
+								rm lock$f.txt
 							fi
 						done
-						if [[ -f daily_limit.txt ]]; then
+						if [[ -f daily_limit$f.txt ]]; then
 							echo "$(date -u '+%Y-%m-%d %H:%M:%S') Pausing for $(( (3600 - $(date +%s) % 3600) / 60 )) minutes"
 							sleep $(( 3600 - $(date +%s) % 3600 ))
-							rm daily_limit.txt
+							rm daily_limit$f.txt
 						fi
 					done <<< "$new_list"
 					unset new_list
@@ -561,46 +628,43 @@ if [[ -n "$parallel" ]]; then
 		fi
 		list="$new_list"
 		unset new_list
-		if [[ -z "$list" ]]; then
-			break
+		if [[ -z "$list" && -z "$(<failed.txt)" ]]; then
+			# No more URLs
+			touch quit$f.txt
+			rm failed.txt
 		fi
 	done
 fi
 
-echo "2" > status_rate.txt
+if [[ ! -f quit$f.txt ]]; then
+	echo "2" > status_rate$f.txt
+fi
 
 # Linear loop
-while [[ ! -f quit.txt ]]; do
-	if [[ -n "$list" ]]; then
-		hour=`date -u +%H`
-		while IFS='' read -r line || [[ -n "$line" ]]; do
-			capture "$line"
-			((counter++))
-			# Check failures and outlinks approximately every hour
-			if ! ((counter % 50)) && ! [[ `date -u +%H` == "$hour" || -f quit.txt ]]; then
-				hour=`date -u +%H`
-				new_list=$(get_list)
-				if [[ -n "$new_list" ]]; then
-					while IFS='' read -r line2 || [[ -n "$line2" ]]; do
-						capture "$line2"
-					done <<< "$new_list"
-				fi
-				unset new_list
+while [[ ! -f quit$f.txt ]]; do
+	hour=`date -u +%H`
+	while IFS='' read -r line || [[ -n "$line" ]]; do
+		capture "$line"
+		((counter++))
+		# Check failures and outlinks approximately every hour
+		if ! ((counter % 50)) && ! [[ `date -u +%H` == "$hour" || -f quit$f.txt ]]; then
+			hour=`date -u +%H`
+			new_list=$(get_list)
+			if [[ -n "$new_list" ]]; then
+				while IFS='' read -r line2 || [[ -n "$line2" ]]; do
+					capture "$line2"
+				done <<< "$new_list"
 			fi
-		done <<< "$list"
-	else
-		if [[ -z "$(<failed.txt)" ]]; then
-			# No more URLs
-			touch quit.txt
+			unset new_list
 		fi
-	fi
+	done <<< "$list"
 	new_list=$(get_list)
 	if [[ "$new_list" == "$list" ]]; then
 		((repeats++))
 		if ((repeats > 1)); then
 			if ((repeats > 4)); then
 				# Give up
-				touch quit.txt
+				touch quit$f.txt
 			else
 				echo "$(date -u '+%Y-%m-%d %H:%M:%S') Pausing for 30 minutes"
 				sleep 1800
@@ -609,6 +673,15 @@ while [[ ! -f quit.txt ]]; do
 	fi
 	list="$new_list"
 	unset new_list
+	if [[ -z "$list" && -z "$(<failed.txt)" ]]; then
+		# No more URLs
+		touch quit$f.txt
+		rm failed.txt
+	fi
 done
+
+if [[ -n "$custom_dir" ]]; then
+	rm quit$f.txt max_parallel_jobs$f.txt status_rate$f.txt
+fi
 
 kill $tor_pid
