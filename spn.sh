@@ -139,7 +139,7 @@ if [[ -n "$custom_dir" ]]; then
 	fi
 	cd "$dir"
 
-	for i in quit$f.txt max_parallel_jobs$f.txt status_rate$f.txt; do
+	for i in max_parallel_jobs$f.txt status_rate$f.txt lock$f.txt daily_limit$f.txt quit$f.txt; do
 		if [[ -f "$i" ]]; then
 			rm "$i"
 		fi
@@ -635,5 +635,9 @@ while [[ ! -f quit$f.txt ]]; do
 done
 
 if [[ -n "$custom_dir" ]]; then
-	rm quit$f.txt max_parallel_jobs$f.txt status_rate$f.txt
+	for i in max_parallel_jobs$f.txt status_rate$f.txt lock$f.txt daily_limit$f.txt quit$f.txt; do
+		if [[ -f "$i" ]]; then
+			rm "$i"
+		fi
+	done
 fi
