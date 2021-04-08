@@ -294,7 +294,7 @@ function capture(){
 					fi
 				fi
 				if [[ ! -f lock$f.txt ]]; then
-					touch lock.txt
+					touch lock$f.txt
 					while [[ -f lock$f.txt ]]; do
 						# Retry the request until either the job is submitted or a different error is received
 						if [[ -n "$auth" ]]; then
