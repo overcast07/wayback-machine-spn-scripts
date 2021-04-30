@@ -441,10 +441,9 @@ function get_list(){
 	local failed_file=failed-$(date +%s).txt
 	mv failed.txt $failed_file
 	touch failed.txt
+	local failed_list=$(<$failed_file)
 
 	if [[ -n "$outlinks" ]]; then
-		local failed_list=$(<$failed_file)
-
 		local outlinks_file=outlinks-$(date +%s).txt
 		mv outlinks.txt $outlinks_file
 		touch outlinks.txt
@@ -471,7 +470,7 @@ $outlinks_list"
 			rm $outlinks_file
 		fi
 	else
-		echo "$(<$failed_file)"
+		echo "$failed_list"
 	fi
 	if [[ -z "$failed_list" ]]; then
 		rm $failed_file
