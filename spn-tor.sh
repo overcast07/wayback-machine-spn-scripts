@@ -621,6 +621,7 @@ if [[ -n "$parallel" ]]; then
 				if ((repeats > 3)); then
 					break
 				else
+					echo "$(date -u '+%Y-%m-%d %H:%M:%S') Pausing for 30 minutes"
 					sleep 1800
 				fi
 			fi
