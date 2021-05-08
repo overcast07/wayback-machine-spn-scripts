@@ -434,7 +434,7 @@ function capture(){
 	done
 	echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
 	echo "$1" >> failed.txt
-	exit 1
+	return 1
 }
 
 function get_list(){
