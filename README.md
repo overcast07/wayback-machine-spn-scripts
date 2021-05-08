@@ -63,7 +63,7 @@ spn.sh urls.txt
 
 ##### Run jobs in parallel
 
-Keep at most `10` active processes at the same time. (The server-side rate limit may come into effect before reaching that number.)
+Keep at most `10` capture jobs active at the same time. (The server-side rate limit may come into effect before reaching this limit.)
 ```bash
 spn.sh -p 10 urls.txt
 ```
