@@ -38,7 +38,52 @@ The only required input (unless resuming a previous session) is the first argume
 
 The main list of URLs is stored in memory. Every time the script reaches the end of the main list, and approximately once every hour (if the list has more than 50 URLs), URLs for failed capture jobs and outlinks are added to the list. When there are no more URLs, the script terminates.
 
+The script can be terminated from the command prompt with Ctrl+C (or by other methods like the task manager or the `kill` command). If this is done, no more capture jobs will be started. (If the `-p` flag is used, active capture jobs may continue to run for a few minutes.)
+
 The script may sometimes not output to the console or to the log files for an extended period. This can occur if Save Page Now introduces a delay for captures of a specific domain, though typically the delay is only around a few minutes at most. [If you're on Windows, make sure it isn't just PowerShell.](https://serverfault.com/a/205898)
+
+#### Usage examples
+
+##### Basic usage
+
+Submit URLs from the command line.
+```bash
+spn.sh https://example.com/page1/ https://example.com/page2/
+```
+
+If this doesn't work, try specifying the file path of the script. For example, if you move the script into your home folder:
+```bash
+~/spn.sh https://example.com/page1/ https://example.com/page2/
+```
+
+Submit URLs from a text file containing one URL per line.
+```bash
+spn.sh urls.txt
+```
+
+##### Run jobs in parallel
+
+Keep at most `10` active processes at the same time. (The server-side rate limit may come into effect before reaching that number.)
+```bash
+spn.sh -p 10 urls.txt
+```
+
+##### Save outlinks
+
+Save all outlinks, outlinks of outlinks, and so on. (The script continues until either there are no more URLs or the script is terminated by the user.)
+```bash
+spn.sh -o '' https://example.com/
+```
+
+Save outlinks matching either `youtube` or `reddit`, except those matching `facebook`.
+```bash
+spn.sh -o 'youtube|reddit' -x 'facebook' https://example.com/
+```
+
+Save outlinks to the subdomain `www.example.org`.
+```bash
+spn.sh -o 'https?://www\.example\.org(/|$)' https://example.com/
+```
 
 #### Flags
 
@@ -109,6 +154,30 @@ The `.log` files in the data folder of the running script do not affect the scri
 * `invalid.log` contains the submitted URLs for capture jobs that fail to start and are not retried, along with the date and time and the site's error message (if any).
 * `unknown-json.log` contains the final received status response for capture jobs that end unsuccessfully after receiving an unparsable status response.
 
+#### Additional usage examples
+
+##### Outlinks
+
+Save outlinks to all subdomains of `example.org`.
+```bash
+spn.sh -o 'https?://([^/]+\.)?example\.org(/|$)' https://example.com/
+```
+
+Save outlinks to `example.org/files/` and all its subdirectories, except for links with the file extension `.mp4`.
+```bash
+spn.sh -o 'https?://(www\.)?example\.org/files/' -x '\.mp4(\?|$)'  https://example.com/
+```
+
+Save outlinks matching YouTube video URLs.
+```bash
+spn.sh -o 'https?://(www\.|m\.)?youtube\.com/watch\?(.*\&)?v=[a-zA-Z0-9_-]{11}|https?://youtu\.be/[a-zA-Z0-9_-]{11}' https://example.com/
+```
+
+Save subdirectories and files in an IPFS folder, visiting each file twice (replace the example folder URL with that of the folder to be archived).
+```bash
+spn.sh -o 'https?://(gateway\.)?ipfs\.io/ipfs/(QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn/.+|[a-zA-Z0-9]{46}\?filename=)' https://ipfs.io/ipfs/QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn
+```
+
 ## Changelog
 
 * March 18, 2021: Initial release of `spn.sh` 
@@ -116,8 +185,11 @@ The `.log` files in the data folder of the running script do not affect the scri
 * March 29, 2021: Bug fixes
 * April 6, 2021: Bug fixes and improvement of HTTP error handling
 * April 7, 2021: Addition of `-c`, `-f` and `-i` options; bug fixes
+* April 30, 2021: Bug fixes
+* May 8, 2021: Bug fixes; addition of usage examples
 
 ### Future plans
 
 * Add specialized scripts for specific purposes
+* Allow outlinks to be added automatically from direct downloads of pages
 * Add data logging/handling for server-side outlinks function
