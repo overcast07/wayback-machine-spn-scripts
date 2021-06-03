@@ -2,6 +2,8 @@
 
 `spn.sh`, a Bash script that asks the Internet Archive Wayback Machine's [Save Page Now (SPN)](https://web.archive.org/save/) to save live web pages
 
+**Note (June 3, 2021):** Due to a server-side change, all earlier versions of this script no longer work without [a specific patch](https://github.com/overcast07/wayback-machine-spn-scripts/commit/10c5b087d76807170ed830abbd88a0118d234a21). **Please re-download the script if you installed it previously.**
+
 ## Introduction
 
 ### Features
@@ -187,6 +189,7 @@ spn.sh -o 'https?://(gateway\.)?ipfs\.io/ipfs/(QmUNLLsPACCz1vLxQVkXqqLX5R1X345qq
 * April 7, 2021: Addition of `-c`, `-f` and `-i` options; bug fixes
 * April 30, 2021: Bug fixes
 * May 8, 2021: Bug fixes; addition of usage examples
+* June 3, 2021: Bug fix (all previous versions of the script now require an API key to work correctly due to a server-side change in the format of job IDs)
 
 ### Future plans
 
