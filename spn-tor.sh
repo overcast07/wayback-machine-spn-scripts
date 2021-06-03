@@ -250,7 +250,7 @@ function capture(){
 				message=$(echo "$request" | grep -Eo '"message":"([^"\\]|\\["\\])*"' | sed -Ee 's/"message":"(.*)"/\1/g')
 			else
 				request=$(curl "${curl_args[@]}" -s -m 60 -X POST --data-urlencode "url=${1}" -d "${post_data}" -x socks5h://127.0.0.1:$tor_port/ "https://web.archive.org/save/")
-				job_id=$(echo "$request" | grep -E 'spn\.watchJob\(' | grep -Eo '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|spn2-[0-9a-f]*' | head -1)
+				job_id=$(echo "$request" | grep -E 'spn\.watchJob\(' | sed -Ee 's/^.*spn\.watchJob\("([^"]*).*$/\1/g' | head -1)
 				if [[ -n "$job_id" ]]; then
 					break
 				fi
@@ -310,7 +310,7 @@ function capture(){
 						else
 							kill -HUP $tor_pid
 							request=$(curl "${curl_args[@]}" -s -m 60 -X POST --data-urlencode "url=${1}" -d "${post_data}" -x socks5h://127.0.0.1:$tor_port/ "https://web.archive.org/save/")
-							job_id=$(echo "$request" | grep -E 'spn\.watchJob\(' | grep -Eo '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|spn2-[0-9a-f]*' | head -1)
+							job_id=$(echo "$request" | grep -E 'spn\.watchJob\(' | sed -Ee 's/^.*spn\.watchJob\("([^"]*).*$/\1/g' | head -1)
 							if [[ -n "$job_id" ]]; then
 								rm lock$f.txt
 								break 2
