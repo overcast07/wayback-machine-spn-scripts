@@ -190,6 +190,7 @@ spn.sh -o 'https?://(gateway\.)?ipfs\.io/ipfs/(QmUNLLsPACCz1vLxQVkXqqLX5R1X345qq
 * April 30, 2021: Bug fixes
 * May 8, 2021: Bug fixes; addition of usage examples
 * June 3, 2021: Bug fix (all previous versions of the script now require an API key to work correctly due to a server-side change in the format of job IDs)
+* July 6, 2021: Bug fix (server-side change)
 
 ### Future plans
 
