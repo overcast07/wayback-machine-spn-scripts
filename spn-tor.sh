@@ -278,7 +278,7 @@ function capture(){
 				fi
 			else
 				echo "$message"
-				if ! [[ "$message" =~ "You have already reached the limit of active sessions" || "$message" =~ "Cannot start capture" ]]; then
+				if ! [[ "$message" =~ "You have already reached the limit of active sessions" || "$message" =~ "Cannot start capture" || "$message" =~ "Crawling this host is paused" ]]; then
 					if [[ "$message" =~ "You cannot make more than "[1-9][0-9,]*" captures per day" ]]; then
 						if [[ -n "$auth" ]]; then
 							touch daily_limit$f.txt
@@ -331,7 +331,7 @@ function capture(){
 							fi
 						else
 							echo "$message"
-							if [[ "$message" =~ "You have already reached the limit of active sessions" || "$message" =~ "Cannot start capture" ]]; then
+							if [[ "$message" =~ "You have already reached the limit of active sessions" || "$message" =~ "Cannot start capture" || "$message" =~ "Crawling this host is paused" ]]; then
 								:
 							elif [[ "$message" =~ "You cannot make more than "[1-9][0-9,]*" captures per day" ]]; then
 								if [[ -n "$auth" ]]; then
