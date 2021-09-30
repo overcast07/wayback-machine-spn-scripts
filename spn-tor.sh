@@ -258,7 +258,7 @@ function capture(){
 				message=$(echo "$request" | grep -E -A 1 "<h2>" | tail -1 | sed -Ee 's|</?p>||g')
 			fi
 			if [[ -z "$message" ]]; then
-				if [[ "$request" =~ "429 Too Many Requests" ]]; then
+				if [[ "$request" =~ "429 Too Many Requests" ]] || [[ "$request" == "" ]]; then
 					echo "$request"
 					if [[ ! -f lock$f.txt ]]; then
 						kill -HUP $tor_pid
@@ -319,7 +319,7 @@ function capture(){
 							message=$(echo "$request" | grep -E -A 1 "<h2>" | tail -1 | sed -Ee 's|</?p>||g')
 						fi
 						if [[ -z "$message" ]]; then
-							if [[ "$request" =~ "429 Too Many Requests" ]]; then
+							if [[ "$request" =~ "429 Too Many Requests" ]] || [[ "$request" == "" ]]; then
 								echo "$request"
 								kill -HUP $tor_pid
 							elif ! : &>/dev/null </dev/tcp/127.0.0.1/$tor_port; then
@@ -378,7 +378,7 @@ function capture(){
 			status=$(echo "$request" | grep -Eo '"status":"([^"\\]|\\["\\])*"' | head -1)
 			if [[ -z "$status" ]]; then
 				echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Status request failed] $1"
-				if [[ "$request" =~ "429 Too Many Requests" ]]; then
+				if [[ "$request" =~ "429 Too Many Requests" ]] || [[ "$request" == "" ]]; then
 					echo "$request"
 					kill -HUP $tor_pid
 				elif ! : &>/dev/null </dev/tcp/127.0.0.1/$tor_port; then
@@ -389,7 +389,7 @@ function capture(){
 				status=$(echo "$request" | grep -Eo '"status":"([^"\\]|\\["\\])*"' | head -1)
 				if [[ -z "$status" ]]; then
 					echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Status request failed] $1"
-					if [[ "$request" =~ "429 Too Many Requests" ]]; then
+					if [[ "$request" =~ "429 Too Many Requests" ]] || [[ "$request" == "" ]]; then
 						echo "$request"
 						kill -HUP $tor_pid
 						status='"status":"pending"'
