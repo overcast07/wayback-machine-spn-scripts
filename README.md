@@ -28,7 +28,7 @@ There exist several alternatives to this script, including the Python program [s
 
 ### Installation
 
-Download the script and make it executable with the command `chmod a+x spn.sh`.
+Download the script and make it executable with the command `chmod a+x spn.sh`. The script can be run directly and does not need to be compiled to a binary executable beforehand.
 
 ### Dependencies
 
