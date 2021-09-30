@@ -227,7 +227,7 @@ function capture(){
 				message=$(echo "$request" | grep -E -A 1 "<h2>" | tail -1 | sed -Ee 's|</?p>||g')
 			fi
 			if [[ -z "$message" ]]; then
-				if [[ "$request" =~ "429 Too Many Requests" ]]; then
+				if [[ "$request" =~ "429 Too Many Requests" ]] || [[ "$request" == "" ]]; then
 					echo "$request"
 					if [[ ! -f lock$f.txt ]]; then
 						touch lock$f.txt
@@ -283,7 +283,7 @@ function capture(){
 							message=$(echo "$request" | grep -E -A 1 "<h2>" | tail -1 | sed -Ee 's|</?p>||g')
 						fi
 						if [[ -z "$message" ]]; then
-							if [[ "$request" =~ "429 Too Many Requests" ]]; then
+							if [[ "$request" =~ "429 Too Many Requests" ]] || [[ "$request" == "" ]]; then
 								echo "$request"
 								sleep 20
 							else
@@ -336,7 +336,7 @@ function capture(){
 			status=$(echo "$request" | grep -Eo '"status":"([^"\\]|\\["\\])*"' | head -1)
 			if [[ -z "$status" ]]; then
 				echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Status request failed] $1"
-				if [[ "$request" =~ "429 Too Many Requests" ]]; then
+				if [[ "$request" =~ "429 Too Many Requests" ]] || [[ "$request" == "" ]]; then
 					echo "$request"
 					sleep 20
 				fi
@@ -345,7 +345,7 @@ function capture(){
 				status=$(echo "$request" | grep -Eo '"status":"([^"\\]|\\["\\])*"' | head -1)
 				if [[ -z "$status" ]]; then
 					echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Status request failed] $1"
-					if [[ "$request" =~ "429 Too Many Requests" ]]; then
+					if [[ "$request" =~ "429 Too Many Requests" ]] || [[ "$request" == "" ]]; then
 						echo "$request"
 						sleep 20
 						status='"status":"pending"'
