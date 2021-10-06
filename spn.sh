@@ -408,8 +408,8 @@ function capture(){
 					fi
 					if [[ "$message" == "Live page is not available: chrome-error://chromewebdata/" ]]; then
 						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [SPN internal error] $1"
-					elif [[ "$message" =~ ' (HTTP status='(40[89]|429|50[023478])').'$ ]]; then
-						# HTTP status 408, 409, 429, 500, 502, 503, 504, 507 or 508
+					elif [[ "$message" =~ ' (HTTP status='(40[89]|429|50[023478])').'$ ]] || [[ "$message" =~ "The server didn't respond in time" ]]; then
+						# HTTP status 408, 409, 429, 500, 502, 503, 504, 507 or 508, or didn't respond in time
 						# URL may become available later
 						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [$message] $1"
 						break 2
