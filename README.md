@@ -44,6 +44,8 @@ The script can be terminated from the command prompt with Ctrl+C (or by other me
 
 The script may sometimes not output to the console or to the log files for an extended period. This can occur if Save Page Now introduces a delay for captures of a specific domain, though typically the delay is only around a few minutes at most. [If you're on Windows, make sure it isn't just PowerShell.](https://serverfault.com/a/205898)
 
+Note that the default behavior on the website is equivalent to `spn.sh -n` (don't save error pages). Using the flags `-p 10` (10 parallel capture jobs) and `-q` (log fewer JSON responses) is also recommended.
+
 #### Usage examples
 
 ##### Basic usage
@@ -193,6 +195,7 @@ spn.sh -o 'https?://(gateway\.)?ipfs\.io/ipfs/(QmUNLLsPACCz1vLxQVkXqqLX5R1X345qq
 * July 6, 2021: Bug fix (server-side change)
 * September 30, 2021: Bug fix (server-side change)
 * October 6, 2021: Bug fix (handle edge case)
+* December 30, 2021: Changed waiting time before a capture job fails from 5 minutes to 10
 
 ### Future plans
 
