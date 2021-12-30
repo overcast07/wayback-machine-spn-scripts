@@ -428,7 +428,7 @@ function capture(){
 				fi
 				return 0
 			elif [[ "$status" == '"status":"pending"' ]]; then
-				if (( $(date +%s) - start_time > 300 + delay )); then
+				if (( $(date +%s) - start_time > 600 + delay )); then
 					echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job timed out] $1"
 					break 2
 				fi
