@@ -44,7 +44,7 @@ The script can be terminated from the command prompt with Ctrl+C (or by other me
 
 The script may sometimes not output to the console or to the log files for an extended period. This can occur if Save Page Now introduces a delay for captures of a specific domain, though typically the delay is only around a few minutes at most. [If you're on Windows, make sure it isn't just PowerShell.](https://serverfault.com/a/205898)
 
-Using the flags `-p 10` (up to 10 parallel capture jobs) and `-q` (log fewer JSON responses) is recommended. `-n` (don't save error pages) is also recommended unless it is important to also archive particular error pages.
+Using the flags `-p 10` (up to 10 parallel capture jobs) and `-q` (log fewer JSON responses) is recommended. `-n` (don't save error pages) is also recommended unless it is important to archive particular error pages.
 
 #### Usage examples
 
