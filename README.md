@@ -24,6 +24,8 @@ There exist several alternatives to this script, including the Python program [s
 * In comparison to the outlinks function native to Save Page Now, the script allows outlinks to be recursively captured, and allows for inclusion/exclusion of groups of URLs. For example, the user can prevent a website's login form from being repeatedly captured. Additionally, the website's outlinks function can sometimes overwhelm smaller websites, since all of the outlink captures are queued at the same time, whereas the script allows the user to prevent this by limiting the number of parallel capture jobs.
 * The script's structure is relatively extensible. For example, with minor modifications, any data returned by the Save Page Now JSON responses can be processed and output to a new log file and/or reused as input in another function. (The script uses POST requests rather than non-authenticated GET requests to submit URLs to Save Page Now; older scripts that use the latter method return much less data for completed captures and cannot set [capture request options](https://docs.google.com/document/d/1Nsv52MvSjbLb2PCpHlat0gkzw0EvtSgpKHu4mk0MnrA/edit#heading=h.uu61fictja6r).)
 
+The information on this page is focused on the script itself. More information about Save Page Now can be found at [the draft SPN2 public API documentation](https://docs.google.com/document/d/1Nsv52MvSjbLb2PCpHlat0gkzw0EvtSgpKHu4mk0MnrA/edit) by Vangelis Banos.
+
 ## spn.sh
 
 ### Installation
