@@ -42,7 +42,7 @@ Options:
  -q             discard JSON for completed jobs instead of writing to log file
 
  -r folder      resume with the remaining URLs of an aborted session
-                (aborted session's settings do not carry over)
+                (settings are not carried over, except for outlinks options)
 
  -s             use HTTPS for all captures and change HTTP input URLs to HTTPS
 
