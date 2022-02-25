@@ -34,7 +34,7 @@ Download the script and make it executable with the command `chmod a+x spn.sh`. 
 
 ### Dependencies
 
-This script is written in Bash and has been tested using the shell environment preinstalled binaries on macOS and Windows 10 WSL Ubuntu. As far as possible, utilities have been used in ways in which behavior is consistent for both their GNU and BSD implementations. (The use of `sed -E` in particular may be a problem for older versions of GNU `sed`, but otherwise there should be no major compatibility issues.)
+This script is written in Bash and has been tested using the shell environment preinstalled binaries on macOS 10.14, macOS 12 and Windows 10 WSL Ubuntu. As far as possible, utilities have been used in ways in which behavior is consistent for both their GNU and BSD implementations. (The use of `sed -E` in particular may be a problem for older versions of GNU `sed`, but otherwise there should be no major compatibility issues.)
 
 ### Operation
 
@@ -116,7 +116,7 @@ spn.sh -o 'https?://www\.example\.org(/|$)' https://example.com/
  -q             discard JSON for completed jobs instead of writing to log file
 
  -r folder      resume with the remaining URLs of an aborted session
-                (aborted session's settings do not carry over)
+                (settings are not carried over, except for outlinks options)
 
  -s             use HTTPS for all captures and change HTTP input URLs to HTTPS
 
@@ -136,15 +136,16 @@ All flags should be placed before arguments, but flags may be used in any order.
 * The `-n` flag unsets the HTTP POST option `capture_all=on`. This tells Save Page Now not to save error pages to the Wayback Machine. Because the option is set by default when using the web form, the script does the same.
 * The `-q` flag tells the script not to write JSON for successful captures to the disk. This can save disk space if you don't intend to use the JSON for anything.
 * The `-s` flag forces the use of HTTPS for all captures (excluding FTP links). Input URLs and outlinks are automatically changed to HTTPS.
-* The `-r` flag allows the script to resume with the remaining URLs of a prior aborted session; the argument should be the location of a folder. If this flag is used, the script does not take any arguments. It is necessary for `index.txt` and `success.log` to exist in the folder in order for the session to be resumed; if `outlinks.txt` also exists, then the links in that file and the links in `captures.log` will also be accounted for.
+* The `-r` flag allows the script to resume with the remaining URLs of a prior aborted session; the argument should be the location of a folder. If this flag is used, the script does not take any arguments. It is necessary for `index.txt` and `success.log` to exist in the folder in order for the session to be resumed.  If `outlinks.txt` also exists, then the links in that file and the links in `captures.log` will also be accounted for, and the contents of `include_pattern.txt` and `exclude_pattern.txt` will be copied over if the `-o` and `-x` flags are not set. To avoid collecting any new outlinks, use `-x '.*'`.
 
 #### Data files
 
 The `.txt` files in the data folder of the running script may be modified manually to affect the script's operation, excluding old versions of those files which have been renamed to have a Unix timestamp in the title.
 
 * `failed.txt` is used to compile the URLs that could not be saved, excluding files larger than 2 GB and URLs returning HTTP errors. They are periodically added back to the main list and retried. The user can add and remove URLs from this file to affect which URLs are added. Old versions of the file are renamed with a Unix timestamp.
-* `outlinks.txt` is used to compile matching outlinks from captures if the `-o` flag is used. They are periodically deduplicated and added to the main list. The user can add and remove URLs from this file. When resuming an aborted session with the `-r` flag, the file is used to determine which URLs have yet to be captured. If the `-o` flag is not used, this file is not created and has no effect if created by the user. Old versions of the file are renamed with a Unix timestamp.
-* `index.txt` is used to record which links are part of the list, and is created when the script starts. If the -o flag is not used, this file is never used unless the `-r` flag is later used to resume the session. When outlinks are added to the main list, they are also appended to this file. When a capture job finishes successfully, if the submitted URL redirects to a different URL, the latter is added to the list (unless the -o flag is not used). The user can add and remove URLs from this file. When resuming an aborted session with the `-r` flag, the file is used to determine which URLs have yet to be captured.
+* `outlinks.txt` is used to compile matching outlinks from captures. They are periodically deduplicated and added to the main list. The user can add and remove URLs from this file. When resuming an aborted session with the `-r` flag, the file is one of those used to determine which URLs have yet to be captured. Old versions of the file are renamed with a Unix timestamp once the contents have been combined into the main list. The file is created if the `-o` or `-x` flags are used, and is also created if a session that is being resumed contains `outlinks.txt`.
+* `index.txt` is used to record which links are part of the list, and is created when the script starts. If outlinks are not being saved, this file is never used unless the `-r` flag is later used to resume the session. When outlinks are added to the main list, they are also appended to this file. When a capture job finishes successfully, if the submitted URL redirects to a different URL, the latter is added to the list (unless the -o flag is not used). The user can add and remove URLs from this file. When resuming an aborted session with the `-r` flag, the file is used to determine which URLs have yet to be captured.
+* `include_pattern.txt` and `exclude_pattern.txt` contain the regular expression patterns used for recursive saving of outlinks; outlinks matching the former and not matching the latter are added to `outlinks.txt`. The contents are initially set by the `-o` and `-x` flags and can be changed at any time; both files are created even if one of the flags is not specified. If neither flag is set, then the values may be taken from a session that is being resumed if it contains `outlinks.txt`.
 * `max_parallel_jobs.txt` is initially set to the argument of the `-p` flag if the flag is used. The user can modify this file to change the maximum number of parallel capture jobs. If the `-p` flag is not used, this file is not created and has no effect if created by the user.
 * `status_rate.txt` is the time in seconds that each process sleeps before checking or re-checking the job status. It is initially set to the same as the maximum number of parallel processes, and is 2 if the `-p` flag is not used. The user can modify this file to change the rate at which job statuses are checked, although it is intentionally set low enough to avoid causing too many refused connections.
 * `lock.txt` is created whenever a rate limit message is received upon submitting a URL. Submission of the URL is retried until it is successfully submitted and the file is removed, and while it exists it prevents more new capture jobs from being started. Removing the file manually will cause all jobs that are waiting to retry submission. If the file is created manually or if a process fails to remove the file after having created it, it will be removed automatically after 5 minutes.
@@ -198,6 +199,7 @@ spn.sh -o 'https?://(gateway\.)?ipfs\.io/ipfs/(QmUNLLsPACCz1vLxQVkXqqLX5R1X345qq
 * September 30, 2021: Bug fix (server-side change)
 * October 6, 2021: Bug fix (handle edge case)
 * December 30, 2021: Changed waiting time before a capture job fails from 5 minutes to 10
+* February 25, 2022: Addition of `include_pattern.txt` and `exclude_pattern.txt`; improvements to how `-r` resumes sessions with outlinks (see #11)
 
 ### Future plans
 
