@@ -11,7 +11,7 @@ parallel=''
 quiet=''
 resume=''
 ssl_only=''
-pattern=''
+include_pattern=''
 exclude_pattern=''
 
 print_usage() {
@@ -58,7 +58,7 @@ while getopts 'a:c:d:f:i:no:p:qr:sx:' flag; do
 		f)	custom_dir="$OPTARG" ;;
 		i)	dir_suffix="-$OPTARG" ;;
 		n)	no_errors='true' ;;
-		o)	outlinks='true'; pattern="$OPTARG" ;;
+		o)	outlinks='true'; include_pattern="$OPTARG" ;;
 		p)	parallel="$OPTARG" ;;
 		q)	quiet='true' ;;
 		r)	resume="$OPTARG" ;;
@@ -100,10 +100,18 @@ if [[ -n "$resume" ]]; then
 			index=$(echo "$index" | sed -Ee 's|^[[:blank:]]*(https?://)?[[:blank:]]*([^[:blank:]]+)|https://\2|g;s|^https://ftp://|ftp://|g')
 			success=$(echo "$success" | sed -Ee 's|^[[:blank:]]*(https?://)?[[:blank:]]*([^[:blank:]]+)|https://\2|g;s|^https://ftp://|ftp://|g')
 		fi
+
 		# Remove duplicate lines from new index
 		index=$(awk '!seen [$0]++' <<< "$index")
 		# Remove links that are in success.log and captures.log from new index
 		list=$(awk '{if (f==1) { r[$0] } else if (! ($0 in r)) { print $0 } } ' f=1 <(echo "$success") f=2 <(echo "$index"))
+
+		# If -o and -x are not specified, then retain original values
+		if [[ -z "$outlinks" ]]; then
+			outlinks='true'
+			include_pattern=$(<include_pattern.txt)
+			exclude_pattern=$(<exclude_pattern.txt)
+		fi
 	else
 		# Remove links that are in success.log from index.txt
 		list=$(awk '{if (f==1) { r[$0] } else if (! ($0 in r)) { print $0 } } ' f=1 success.log f=2 index.txt)
@@ -190,9 +198,19 @@ fi
 # Create data files
 # max_parallel_jobs.txt and status_rate.txt are created later
 touch failed.txt
-echo "$list" | awk '!seen [$0]++' > index.txt
+# Add successful capture URLs from previous session, if any, to the index and the list of captures
+# This is to prevent redundant captures in the current session and in future ones
+if [[ -n "$success" ]]; then
+	success=$(echo "$success" | awk '!seen [$0]++')
+	echo "$success" >> index.txt
+	echo "$success" >> success.log
+fi
+echo "$list" | awk '!seen [$0]++' >> index.txt
 if [[ -n "$outlinks" ]]; then
 	touch outlinks.txt
+	# Create both files even if one of them would be empty
+	echo "$include_pattern" > include_pattern.txt
+	echo "$exclude_pattern" > exclude_pattern.txt
 fi
 
 # Submit a URL to Save Page Now and check the result
@@ -378,7 +396,7 @@ function capture(){
 					# grep matches array of strings (most special characters are converted server-side, but not square brackets)
 					# sed transforms the array into just the URLs separated by line breaks
 					echo "$request" | grep -Eo '"outlinks":\["([^"\\]|\\["\\])*"(,"([^"\\]|\\["\\])*")*\]' | sed -Ee 's/"outlinks":\["(.*)"\]/\1/g;s/(([^"\\]|\\["\\])*)","/\1\
-/g;s/\\(["\\])/\1/g' | { [[ -n "$exclude_pattern" ]] && { [[ -n "$pattern" ]] && grep -E "$pattern" | grep -Ev "$exclude_pattern" || grep -Ev "$exclude_pattern"; } || grep -E "$pattern"; } >> outlinks.txt
+/g;s/\\(["\\])/\1/g' | { [[ -n "$(<exclude_pattern.txt)" ]] && { [[ -n "$(<include_pattern.txt)" ]] && grep -E "$(<include_pattern.txt)" | grep -Ev "$(<exclude_pattern.txt)" || grep -Ev "$(<exclude_pattern.txt)"; } || grep -E "$(<include_pattern.txt)"; } >> outlinks.txt
 				fi
 				return 0
 			elif [[ "$status" == '"status":"pending"' ]]; then
