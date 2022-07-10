@@ -201,6 +201,7 @@ spn.sh -o 'https?://(gateway\.)?ipfs\.io/ipfs/(QmUNLLsPACCz1vLxQVkXqqLX5R1X345qq
 * December 30, 2021: Changed waiting time before a capture job fails from 5 minutes to 10
 * February 25, 2022: Addition of `include_pattern.txt` and `exclude_pattern.txt`; improvements to how `-r` resumes sessions with outlinks (see [#11](https://github.com/overcast07/wayback-machine-spn-scripts/issues/11))
 * April 10, 2022: Bug fix (server-side change)
+* July 10, 2022: Bug fix (server-side change)
 
 ### Future plans
 
