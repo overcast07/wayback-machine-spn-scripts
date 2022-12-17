@@ -1,5 +1,24 @@
 #!/bin/bash
 
+trap "abort" SIGINT SIGTERM
+
+function abort(){
+	if [[ -n "$custom_dir" ]]; then
+		echo "
+
+== Aborting spn.sh ==
+Data folder: $dir
+"
+	else
+		echo "
+
+== Aborting spn.sh ==
+Data folder: ~/$dir
+"
+	fi
+	exit 1
+}
+
 auth=''
 curl_args=()
 post_data=''
@@ -141,9 +160,17 @@ if [[ -n "$custom_dir" ]]; then
 	dir="$custom_dir"
 	if [[ ! -d "$dir" ]]; then
 		mkdir "$dir" || { echo "The folder $dir could not be created"; exit 1; }
-		echo "Created data folder $dir"
+		echo "
+
+== Starting spn.sh ==
+Data folder: $dir
+"
 	else
-		echo "Using the existing data folder $dir"
+		echo "
+
+== Starting spn.sh ==
+Using existing data folder: $dir
+"
 	fi
 	cd "$dir"
 
@@ -176,7 +203,11 @@ else
 
 	# Try to create the folder
 	mkdir ~/"$dir" || { echo "The folder ~/$dir could not be created"; exit 1; }
-	echo "Created data folder ~/$dir"
+	echo "
+
+== Starting spn.sh ==
+Data folder: ~/$dir
+"
 	cd ~/"$dir"
 fi
 
@@ -658,4 +689,16 @@ if [[ -n "$custom_dir" ]]; then
 			rm "$i"
 		fi
 	done
+
+	echo "
+
+== Ending spn.sh ==
+Data folder: $dir
+"
+else
+	echo "
+
+== Ending spn.sh ==
+Data folder: ~/$dir
+"
 fi
