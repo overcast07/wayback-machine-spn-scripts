@@ -202,6 +202,7 @@ spn.sh -o 'https?://(gateway\.)?ipfs\.io/ipfs/(QmUNLLsPACCz1vLxQVkXqqLX5R1X345qq
 * February 25, 2022: Addition of `include_pattern.txt` and `exclude_pattern.txt`; improvements to how `-r` resumes sessions with outlinks (see [#11](https://github.com/overcast07/wayback-machine-spn-scripts/issues/11))
 * April 10, 2022: Bug fix (server-side change)
 * July 10, 2022: Bug fix (server-side change)
+* December 17, 2022: Improved and added console messages that appear when the script starts and ends
 
 ### Future plans
 
