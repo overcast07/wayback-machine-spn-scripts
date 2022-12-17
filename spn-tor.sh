@@ -3,6 +3,19 @@
 trap "abort" SIGINT SIGTERM
 
 function abort(){
+	if [[ -n "$custom_dir" ]]; then
+		echo "
+
+== Aborting spn-tor.sh ==
+Data folder: $dir
+"
+	else
+		echo "
+
+== Aborting spn-tor.sh ==
+Data folder: ~/$dir
+"
+	fi
 	kill $tor_pid
 	exit 1
 }
@@ -158,9 +171,17 @@ if [[ -n "$custom_dir" ]]; then
 	dir="$custom_dir"
 	if [[ ! -d "$dir" ]]; then
 		mkdir "$dir" || { echo "The folder $dir could not be created"; exit 1; }
-		echo "Created data folder $dir"
+		echo "
+
+== Starting spn-tor.sh ==
+Data folder: $dir
+"
 	else
-		echo "Using the existing data folder $dir"
+		echo "
+
+== Starting spn-tor.sh ==
+Using existing data folder: $dir
+"
 	fi
 	cd "$dir"
 
@@ -193,7 +214,11 @@ else
 
 	# Try to create the folder
 	mkdir ~/"$dir" || { echo "The folder ~/$dir could not be created"; exit 1; }
-	echo "Created data folder ~/$dir"
+	echo "
+
+== Starting spn-tor.sh ==
+Data folder: ~/$dir
+"
 	cd ~/"$dir"
 fi
 
@@ -276,10 +301,10 @@ function capture(){
 				message=$(echo "$request" | grep -E -A 1 "<h2>" | tail -1 | sed -Ee 's|</?p>||g')
 			fi
 			if [[ -z "$message" ]]; then
-				if [[ "$request" =~ "429 Too Many Requests" ]] || [[ "$request" =~ "Your IP address is in our block list" ]] || [[ "$request" == "" ]]; then
+				if [[ "$request" =~ "429 Too Many Requests" ]] || [[ "$request" =~ "Your IP address is in the Save Page Now block list" ]] || [[ "$request" == "" ]]; then
 					echo "$request"
 					if [[ ! -f lock$f.txt ]]; then
-						kill -HUP $tor_pid
+						kill -HUP $tor_pid || exit 1
 					else
 						break 2
 					fi
@@ -302,7 +327,7 @@ function capture(){
 							touch daily_limit$f.txt
 							break 2
 						else
-							kill -HUP $tor_pid
+							kill -HUP $tor_pid || exit 1
 						fi
 					else
 						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
@@ -326,7 +351,7 @@ function capture(){
 							echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Request failed] $1"
 							message=$(echo "$request" | grep -Eo '"message":"([^"\\]|\\["\\])*"' | sed -Ee 's/"message":"(.*)"/\1/g')
 						else
-							kill -HUP $tor_pid
+							kill -HUP $tor_pid || exit 1
 							request=$(curl "${curl_args[@]}" -s -m 60 -X POST --data-urlencode "url=${1}" -d "${post_data}" -x socks5h://127.0.0.1:$tor_port/ "https://web.archive.org/save/")
 							job_id=$(echo "$request" | grep -E 'spn\.watchJob\(' | sed -Ee 's/^.*spn\.watchJob\("([^"]*).*$/\1/g' | head -1)
 							if [[ -n "$job_id" ]]; then
@@ -337,9 +362,9 @@ function capture(){
 							message=$(echo "$request" | grep -E -A 1 "<h2>" | tail -1 | sed -Ee 's|</?p>||g')
 						fi
 						if [[ -z "$message" ]]; then
-							if [[ "$request" =~ "429 Too Many Requests" ]] || [[ "$request" =~ "Your IP address is in our block list" ]] || [[ "$request" == "" ]]; then
+							if [[ "$request" =~ "429 Too Many Requests" ]] || [[ "$request" =~ "Your IP address is in the Save Page Now block list" ]] || [[ "$request" == "" ]]; then
 								echo "$request"
-								kill -HUP $tor_pid
+								kill -HUP $tor_pid || exit 1
 							elif ! : &>/dev/null </dev/tcp/127.0.0.1/$tor_port; then
 								break 3
 							else
@@ -357,7 +382,7 @@ function capture(){
 									touch daily_limit$f.txt
 									break 3
 								else
-									kill -HUP $tor_pid
+									kill -HUP $tor_pid || exit 1
 								fi
 							else
 								rm lock$f.txt
@@ -396,9 +421,9 @@ function capture(){
 			status=$(echo "$request" | grep -Eo '"status":"([^"\\]|\\["\\])*"' | head -1)
 			if [[ -z "$status" ]]; then
 				echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Status request failed] $1"
-				if [[ "$request" =~ "429 Too Many Requests" ]] || [[ "$request" =~ "Your IP address is in our block list" ]] || [[ "$request" == "" ]]; then
+				if [[ "$request" =~ "429 Too Many Requests" ]] || [[ "$request" =~ "Your IP address is in the Save Page Now block list" ]] || [[ "$request" == "" ]]; then
 					echo "$request"
-					kill -HUP $tor_pid
+					kill -HUP $tor_pid || exit 1
 				elif ! : &>/dev/null </dev/tcp/127.0.0.1/$tor_port; then
 					break 2
 				fi
@@ -407,9 +432,9 @@ function capture(){
 				status=$(echo "$request" | grep -Eo '"status":"([^"\\]|\\["\\])*"' | head -1)
 				if [[ -z "$status" ]]; then
 					echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Status request failed] $1"
-					if [[ "$request" =~ "429 Too Many Requests" ]] || [[ "$request" =~ "Your IP address is in our block list" ]] || [[ "$request" == "" ]]; then
+					if [[ "$request" =~ "429 Too Many Requests" ]] || [[ "$request" =~ "Your IP address is in the Save Page Now block list" ]] || [[ "$request" == "" ]]; then
 						echo "$request"
-						kill -HUP $tor_pid
+						kill -HUP $tor_pid || exit 1
 						status='"status":"pending"'
 						# Fake status response to allow while loop to continue
 					elif ! : &>/dev/null </dev/tcp/127.0.0.1/$tor_port; then
@@ -704,6 +729,18 @@ if [[ -n "$custom_dir" ]]; then
 			rm "$i"
 		fi
 	done
+
+	echo "
+
+== Ending spn-tor.sh ==
+Data folder: $dir
+"
+else
+	echo "
+
+== Ending spn-tor.sh ==
+Data folder: ~/$dir
+"
 fi
 
 kill $tor_pid
