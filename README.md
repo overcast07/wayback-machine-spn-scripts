@@ -198,7 +198,7 @@ spn.sh -t 0 -o 'https?://download[0-9]+\.mediafire\.com/' https://www.mediafire.
 
 Save subdirectories and files in an IPFS folder, visiting each file twice (replace the example folder URL with that of the folder to be archived).
 ```bash
-spn.sh -o 'https?://(gateway\.)?ipfs\.io/ipfs/(QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn/.+|[a-zA-Z0-9]{46}\?filename=)' https://ipfs.io/ipfs/QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn
+spn.sh -o 'https?://cloudflare-ipfs\.com/ipfs/(QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn/.+|[a-zA-Z0-9]{46}\?filename=)' https://cloudflare-ipfs.com/ipfs/QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn
 ```
 
 ## Changelog
