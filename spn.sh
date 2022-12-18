@@ -535,14 +535,16 @@ $outlinks_list"
 # Track the number of loops in which no URLs from the list are archived
 repeats=0
 
+# Go to the linear loop if expressly specified
+if ((parallel < 2)); then
+	unset parallel
+fi
+
 # Parallel loop
 if [[ -n "$parallel" ]]; then
 	if ((parallel > 60)); then
 		parallel=60
 		echo "Setting maximum parallel jobs to 60"
-	elif ((parallel < 2)); then
-		parallel=2
-		echo "Setting maximum parallel jobs to 2"
 	fi
 	echo "$parallel" > max_parallel_jobs$f.txt
 	# Overall request rate stays at around 60 per minute
