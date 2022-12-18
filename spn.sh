@@ -26,10 +26,11 @@ custom_dir=''
 dir_suffix=''
 no_errors=''
 outlinks=''
-parallel=''
+parallel='8'
 quiet=''
 resume=''
 ssl_only=''
+list_update_rate='3600'
 include_pattern=''
 exclude_pattern=''
 
@@ -56,7 +57,7 @@ Options:
 
  -o pattern     save detected capture outlinks matching regex (ERE) pattern
 
- -p N           run at most N capture jobs in parallel (off by default)
+ -p N           run at most N capture jobs in parallel (default: 8)
 
  -q             discard JSON for completed jobs instead of writing to log file
 
@@ -65,11 +66,14 @@ Options:
 
  -s             use HTTPS for all captures and change HTTP input URLs to HTTPS
 
+ -t N           wait at least N seconds before updating the main list of URLs
+                with outlinks and failed capture jobs (default: 3600)
+
  -x pattern     save detected capture outlinks not matching regex (ERE) pattern
                 (if -o is also used, outlinks are filtered using both regexes)"
 }
 
-while getopts 'a:c:d:f:i:no:p:qr:sx:' flag; do
+while getopts 'a:c:d:f:i:no:p:qr:st:x:' flag; do
 	case "${flag}" in
 		a)	auth="$OPTARG" ;;
 		c)	declare -a "curl_args=($OPTARG)" ;;
@@ -82,6 +86,7 @@ while getopts 'a:c:d:f:i:no:p:qr:sx:' flag; do
 		q)	quiet='true' ;;
 		r)	resume="$OPTARG" ;;
 		s)	ssl_only='true' ;;
+		t)	list_update_rate="$OPTARG" ;;
 		x)	outlinks='true'; exclude_pattern="$OPTARG" ;;
 		*)	print_usage
 			exit 1 ;;
@@ -174,7 +179,7 @@ Using existing data folder: $dir
 	fi
 	cd "$dir"
 
-	for i in max_parallel_jobs$f.txt status_rate$f.txt lock$f.txt daily_limit$f.txt quit$f.txt; do
+	for i in max_parallel_jobs$f.txt status_rate$f.txt list_update_rate$f.txt lock$f.txt daily_limit$f.txt quit$f.txt; do
 		if [[ -f "$i" ]]; then
 			rm "$i"
 		fi
@@ -229,6 +234,7 @@ fi
 # Create data files
 # max_parallel_jobs.txt and status_rate.txt are created later
 touch failed.txt
+echo "$list_update_rate" > list_update_rate$f.txt
 # Add successful capture URLs from previous session, if any, to the index and the list of captures
 # This is to prevent redundant captures in the current session and in future ones
 if [[ -n "$success" ]]; then
@@ -273,7 +279,7 @@ function capture(){
 					break
 				fi
 				echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Request failed] $1"
-				message=$(echo "$request" | grep -E -A 1 "<h2>" | tail -1 | sed -Ee 's|</?p>||g')
+				message=$(echo "$request" | grep -E -A 1 "<h2>" | tail -1 | sed -Ee 's| *</?p> *||g')
 			fi
 			if [[ -z "$message" ]]; then
 				if [[ "$request" =~ "429 Too Many Requests" ]] || [[ "$request" == "" ]]; then
@@ -295,7 +301,7 @@ function capture(){
 					sleep 5
 				fi
 			else
-				echo "$message"
+				echo "        $message"
 				if ! [[ "$message" =~ "You have already reached the limit" || "$message" =~ "Cannot start capture" || "$message" =~ "The server encountered an internal error and was unable to complete your request" || "$message" =~ "Crawling this host is paused" ]]; then
 					if [[ "$message" =~ "You cannot make more than "[1-9][0-9,]*" captures per day" ]]; then
 						touch daily_limit$f.txt
@@ -329,7 +335,7 @@ function capture(){
 								break 2
 							fi
 							echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Request failed] $1"
-							message=$(echo "$request" | grep -E -A 1 "<h2>" | tail -1 | sed -Ee 's|</?p>||g')
+							message=$(echo "$request" | grep -E -A 1 "<h2>" | tail -1 | sed -Ee 's| *</?p> *||g')
 						fi
 						if [[ -z "$message" ]]; then
 							if [[ "$request" =~ "429 Too Many Requests" ]] || [[ "$request" == "" ]]; then
@@ -341,7 +347,7 @@ function capture(){
 								break
 							fi
 						else
-							echo "$message"
+							echo "        $message"
 							if [[ "$message" =~ "You have already reached the limit" || "$message" =~ "Cannot start capture" || "$message" =~ "The server encountered an internal error and was unable to complete your request" || "$message" =~ "Crawling this host is paused" ]]; then
 								:
 							elif [[ "$message" =~ "You cannot make more than "[1-9][0-9,]*" captures per day" ]]; then
@@ -543,7 +549,7 @@ if [[ -n "$parallel" ]]; then
 	echo "$parallel" > status_rate$f.txt
 	while [[ ! -f quit$f.txt ]]; do
 		(
-		hour=`date -u +%H`
+		time_since_start="$SECONDS"
 		while IFS='' read -r line || [[ -n "$line" ]]; do
 			capture "$line" & ((children > 2)) && sleep 2.5
 			children_wait=0
@@ -573,10 +579,9 @@ if [[ -n "$parallel" ]]; then
 				sleep $(( 3600 - $(date +%s) % 3600 ))
 				rm daily_limit$f.txt
 			fi
-			((counter++))
-			# Check failures and outlinks approximately every hour
-			if ! ((counter % 50)) && ! [[ `date -u +%H` == "$hour" || -f quit$f.txt ]]; then
-				hour=`date -u +%H`
+			# Check failures and outlinks regularly
+			if ! [[ $(( (SECONDS - time_since_start) / $(<list_update_rate$f.txt) )) == "0" || -f quit$f.txt ]]; then
+				time_since_start="$SECONDS"
 				new_list=$(get_list)
 				if [[ -n "$new_list" ]]; then
 					while IFS='' read -r line2 || [[ -n "$line2" ]]; do
@@ -645,13 +650,12 @@ fi
 
 # Linear loop
 while [[ ! -f quit$f.txt ]]; do
-	hour=`date -u +%H`
+	time_since_start="$SECONDS"
 	while IFS='' read -r line || [[ -n "$line" ]]; do
 		capture "$line"
-		((counter++))
-		# Check failures and outlinks approximately every hour
-		if ! ((counter % 50)) && ! [[ `date -u +%H` == "$hour" || -f quit$f.txt ]]; then
-			hour=`date -u +%H`
+		# Check failures and outlinks regularly
+		if ! [[ $(( (SECONDS - time_since_start) / $(<list_update_rate$f.txt) )) == "0" || -f quit$f.txt ]]; then
+			time_since_start="$SECONDS"
 			new_list=$(get_list)
 			if [[ -n "$new_list" ]]; then
 				while IFS='' read -r line2 || [[ -n "$line2" ]]; do
@@ -684,7 +688,7 @@ while [[ ! -f quit$f.txt ]]; do
 done
 
 if [[ -n "$custom_dir" ]]; then
-	for i in max_parallel_jobs$f.txt status_rate$f.txt lock$f.txt daily_limit$f.txt quit$f.txt; do
+	for i in max_parallel_jobs$f.txt status_rate$f.txt list_update_rate$f.txt lock$f.txt daily_limit$f.txt quit$f.txt; do
 		if [[ -f "$i" ]]; then
 			rm "$i"
 		fi
