@@ -40,9 +40,9 @@ This script is written in Bash and has been tested using the shell environment p
 
 The only required input (unless resuming a previous session) is the first argument, which can be a file name or URL. If the file doesn't exist or if there's more than one argument, then the input is treated as a set of URLs. A sub-subfolder of `~/spn-data` is created when the script starts, and logs and data are stored in the new folder. Some information is also sent to the standard output. All dates and times are in UTC.
 
-The main list of URLs is stored in memory. Every hour, and every time the script reaches the end of the main list, URLs for failed capture jobs and outlinks are added to the list. When there are no more URLs, the script terminates.
+The main list of URLs is stored in memory. Periodically, URLs for failed capture jobs and outlinks are added to the list. When there are no more URLs, the script terminates.
 
-The script can be terminated from the command prompt with Ctrl+C (or by other methods like the task manager or the `kill` command). If this is done, no more capture jobs will be started. (If the `-p` flag is used, active capture jobs may continue to run for a few minutes.)
+The script can be terminated from the command prompt with Ctrl+C (or by other methods like the task manager or the `kill` command). If this is done, no more capture jobs will be started, although active capture jobs may continue to run for a few minutes.
 
 The script may sometimes not output to the console or to the log files for an extended period. This can occur if Save Page Now introduces a delay for captures of a specific domain, though typically the delay is only around a few minutes at most. [If you're on Windows, make sure it isn't just PowerShell.](https://serverfault.com/a/205898)
 
@@ -189,6 +189,11 @@ spn.sh -o 'https?://(www\.)?example\.org/files/' -x '\.mp4(\?|$)'  https://examp
 Save outlinks matching YouTube video URLs.
 ```bash
 spn.sh -o 'https?://(www\.|m\.)?youtube\.com/watch\?(.*\&)?v=[a-zA-Z0-9_-]{11}|https?://youtu\.be/[a-zA-Z0-9_-]{11}' https://example.com/
+```
+
+Save outlinks matching MediaFire file download URLs, and update the URL list as frequently as possible so that the outlinks can be captured before they expire.
+```bash
+spn.sh -t 0 -o 'https?://download[0-9]+\.mediafire\.com/' https://www.mediafire.com/file/a28veehw21gq6dc
 ```
 
 Save subdirectories and files in an IPFS folder, visiting each file twice (replace the example folder URL with that of the folder to be archived).
