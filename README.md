@@ -193,7 +193,7 @@ spn.sh -o 'https?://(www\.|m\.)?youtube\.com/watch\?(.*\&)?v=[a-zA-Z0-9_-]{11}|h
 
 Save outlinks matching MediaFire file download URLs, and update the URL list as frequently as possible so that the outlinks can be captured before they expire.
 ```bash
-spn.sh -t 0 -o 'https?://download[0-9]+\.mediafire\.com/' https://www.mediafire.com/file/a28veehw21gq6dc
+spn.sh -t 1 -o 'https?://download[0-9]+\.mediafire\.com/' https://www.mediafire.com/file/a28veehw21gq6dc
 ```
 
 Save subdirectories and files in an IPFS folder, visiting each file twice (replace the example folder URL with that of the folder to be archived).
