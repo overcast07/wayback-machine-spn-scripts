@@ -193,7 +193,7 @@ spn.sh -o 'https?://(www\.|m\.)?youtube\.com/watch\?(.*\&)?v=[a-zA-Z0-9_-]{11}|h
 
 Save outlinks matching MediaFire file download URLs, and update the URL list as frequently as possible so that the outlinks can be captured before they expire.
 ```bash
-spn.sh -t 1 -o 'https?://download[0-9]+\.mediafire\.com/' https://www.mediafire.com/file/a28veehw21gq6dc
+spn.sh -t 0 -o 'https?://download[0-9]+\.mediafire\.com/' https://www.mediafire.com/file/a28veehw21gq6dc
 ```
 
 Save subdirectories and files in an IPFS folder, visiting each file twice (replace the example folder URL with that of the folder to be archived).
@@ -220,6 +220,7 @@ spn.sh -o 'https?://cloudflare-ipfs\.com/ipfs/(QmUNLLsPACCz1vLxQVkXqqLX5R1X345qq
 * July 10, 2022: Bug fix (server-side change)
 * December 17, 2022: Modification and addition of console messages that appear when the script starts and ends
 * December 18, 2022: Addition of `-t` flag; change in the default amount of maximum parallel capture jobs from 1 to 8
+* December 19, 2022: Bug fixes
 
 ### Future plans
 
