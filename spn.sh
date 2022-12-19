@@ -582,7 +582,7 @@ if [[ -n "$parallel" ]]; then
 				rm daily_limit$f.txt
 			fi
 			# Check failures and outlinks regularly
-			if ! [[ $(( (SECONDS - time_since_start) / $(<list_update_rate$f.txt) )) == "0" || -f quit$f.txt ]]; then
+			if (( SECONDS - time_since_start > $(<list_update_rate$f.txt) )) && [[ ! -f quit$f.txt ]] ; then
 				time_since_start="$SECONDS"
 				new_list=$(get_list)
 				if [[ -n "$new_list" ]]; then
@@ -656,7 +656,7 @@ while [[ ! -f quit$f.txt ]]; do
 	while IFS='' read -r line || [[ -n "$line" ]]; do
 		capture "$line"
 		# Check failures and outlinks regularly
-		if ! [[ $(( (SECONDS - time_since_start) / $(<list_update_rate$f.txt) )) == "0" || -f quit$f.txt ]]; then
+		if (( SECONDS - time_since_start > $(<list_update_rate$f.txt) )) && [[ ! -f quit$f.txt ]] ; then
 			time_since_start="$SECONDS"
 			new_list=$(get_list)
 			if [[ -n "$new_list" ]]; then
