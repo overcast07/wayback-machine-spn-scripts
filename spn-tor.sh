@@ -27,7 +27,7 @@ custom_dir=''
 dir_suffix=''
 no_errors=''
 outlinks=''
-parallel='8'
+parallel='30'
 quiet=''
 resume=''
 ssl_only=''
@@ -58,7 +58,7 @@ Options:
 
  -o pattern     save detected capture outlinks matching regex (ERE) pattern
 
- -p N           run at most N capture jobs in parallel (default: 8)
+ -p N           run at most N capture jobs in parallel (default: 30)
 
  -q             discard JSON for completed jobs instead of writing to log file
 
@@ -412,11 +412,31 @@ function capture(){
 			fi
 		done
 		echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job submitted] $1"
-
-		# Wait
-		delay=$(echo "$request" | grep -Eo 'Your capture will begin in [1-9][0-9,]*s' | sed -Ee 's/[^0-9]*//g')
-		if [[ -z "$delay" ]]; then
-			delay="0"
+		
+		# Check if there's a message
+		if [[ -n "$auth" ]]; then
+			message=$(echo "$request" | grep -Eo '"message":"([^"\\]|\\["\\])*"' | sed -Ee 's/"message":"(.*)"/\1/g')
+		else
+			message=$(echo "$request" | grep -E -A 1 "<h2>" | tail -1 | sed -Ee 's| *</?p> *||g')
+		fi
+		if [[ -n "$message" ]]; then
+			echo "        $message"
+			
+			# Extract the delay, if any, from the message
+			delay=$(echo "$message" | grep -Eo 'capture will start in (?:.*? hours?(?:,? *? minutes?)?(?:,? *? seconds?)?|.*? minutes?(?:,? *? seconds?)?|.*? seconds?)')
+			if [[ -n "$delay" ]]; then
+				delay_hours=$(echo "$delay" | sed -Ee 's/.* ~?([0-9]+) hours?.*/\1/g')
+				delay_minutes=$(echo "$delay" | sed -Ee 's/.* ~?([0-9]+) minutes?.*/\1/g')
+				delay_seconds=$(echo "$delay" | sed -Ee 's/.* ~?([0-9]+) seconds?.*/\1/g')
+				
+				# If the values are not integers, set them to 0
+				[[ $delay_hours =~ ^[0-9]+$ ]] || delay_hours="0"
+				[[ $delay_minutes =~ ^[0-9]+$ ]] || delay_minutes="0"
+				[[ $delay_seconds =~ ^[0-9]+$ ]] || delay_seconds="0"
+				
+				delay_seconds=$((delay_hours * 3600 + delay_minutes * 60 + delay_seconds))
+				sleep $delay_seconds
+			fi
 		fi
 		local start_time=`date +%s`
 		local status
@@ -477,7 +497,7 @@ function capture(){
 				fi
 				return 0
 			elif [[ "$status" == '"status":"pending"' ]]; then
-				if (( $(date +%s) - start_time > 600 + delay )); then
+				if (( $(date +%s) - start_time > 1200 )); then
 					echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job timed out] $1"
 					break 2
 				fi
