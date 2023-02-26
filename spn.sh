@@ -377,7 +377,6 @@ function capture(){
 		done
 		echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job submitted] $1"
 		
-		
 		# Check if there's a message
 		if [[ -n "$auth" ]]; then
 			message=$(echo "$request" | grep -Eo '"message":"([^"\\]|\\["\\])*"' | sed -Ee 's/"message":"(.*)"/\1/g')
