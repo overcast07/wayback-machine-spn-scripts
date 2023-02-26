@@ -57,7 +57,7 @@ Options:
 
  -o pattern     save detected capture outlinks matching regex (ERE) pattern
 
- -p N           run at most N capture jobs in parallel (default: 8)
+ -p N           run at most N capture jobs in parallel (default: 30)
 
  -q             discard JSON for completed jobs instead of writing to log file
 
