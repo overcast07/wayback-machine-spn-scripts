@@ -2,7 +2,7 @@
 
 `spn.sh`, a Bash script that asks the Internet Archive Wayback Machine's [Save Page Now (SPN)](https://web.archive.org/save/) to save live web pages
 
-**Note (June 3, 2021):** Due to a server-side change, all earlier versions of this script no longer work without [a specific patch](https://github.com/overcast07/wayback-machine-spn-scripts/commit/10c5b087d76807170ed830abbd88a0118d234a21). **Please re-download the script if you installed it previously.**
+**Note:** Server-side changes are periodically made to the SPN service, so the script's behavior can become outdated quickly. Older revisions of the script are not supported and may not work.
 
 ## Introduction
 
@@ -117,7 +117,7 @@ Options:
 
  -o pattern     save detected capture outlinks matching regex (ERE) pattern
 
- -p N           run at most N capture jobs in parallel (default: 8)
+ -p N           run at most N capture jobs in parallel (default: 30)
 
  -q             discard JSON for completed jobs instead of writing to log file
 
@@ -141,7 +141,7 @@ All flags should be placed before arguments, but flags may be used in any order.
 * The `-f` flag may be used to set a custom location for the data folder, which may be anywhere in the file system; the argument should be the location of the folder. The flag is primarily meant for `cron` jobs; as such, the script's behavior is slightly different, in that all `.txt` files other than `failed.txt`, `outlinks.txt` and `index.txt` will have the running script's process ID inserted into their names and will be deleted when the script finishes, in order to allow multiple instances of the script to run in the same folder without interfering with each other (although they will share `failed.txt`, `outlinks.txt` and `index.txt` and will be able to affect each other through those files). The folder may already exist, and it may also contain a previous session's files, which the script may modify (e.g. it will append data to existing log files). In particular, `index.txt` may be overwritten when the script starts. If the folder does not yet exist, it will be created.
 * The `-i` flag appends a suffix to the name of the data folder. Normally, the name is just the Unix timestamp, so adding text (such as a website name) may be helpful for organizing and distinguishing folders. Other than changing the name of the data folder, it has no effect on the operation of the script.
 * The `-o` and `-x` flags enable recursive saving of outlinks. To save as many outlinks as possible, use `-o ''`. The argument for each flag should be a POSIX ERE regular expression pattern. If only the `-o` flag is used, then all links matching the provided pattern are saved; if only the `-x` flag is used, then all links _not_ matching the provided pattern are saved; and if both are used, then all links matching the `-o` pattern but not the `-x` pattern are saved. Around every hour, matching outlinks in the JSON received from Save Page Now are added to the list of URLs to be submitted to Save Page Now. If an outlink has already been captured in a previous job, it will not be added to the list. A maximum of 100 outlinks per capture can be sent by Save Page Now, and the maximum number of provided outlinks to certain sites (e.g. outlinks matching `example.com`) may be limited server-side. The `-o` and `-x` flags are separate to the server-side `capture_outlinks=1` option, and will not work if that option is enabled through use of the `-a` and `-d` flags.
-* The `-p` flag sets the maximum number of parallel capture jobs, which can be between 1 and 60. If the flag is not used, the maximum number will be set to 8. The Save Page Now rate limit will prevent a user from starting another capture job if the user has too many concurrently active jobs (not including queued jobs for which the URL has not been crawled yet), so setting the value higher may not always be more efficient. When capturing websites that may be easily overloaded, you may want to be careful and set a low maximum number.
+* The `-p` flag sets the maximum number of parallel capture jobs, which can be between 1 and 60. If the flag is not used, the maximum number will be set to 30. The Save Page Now rate limit will prevent a user from starting another capture job if the user has too many concurrently active jobs (not including queued jobs for which the URL has not been crawled yet). The default value is 30 to allow the script to work at a reasonable rate if captures are delayed by the server for several minutes before being started; in practice, the rate limit should prevent the script from actually reaching 30 parallel capture jobs. When capturing websites that may be easily overloaded, you may want to be careful and set a much lower maximum number.
 * The `-n` flag causes error pages to not be saved to the Wayback Machine. (Not saving errors is the default in the SPN2 API, but the script's default is to save error pages, in order to reflect that the SPN website has the option "Save error pages" selected by default.)
 * The `-q` flag tells the script not to write JSON for successful captures to the disk. This can save disk space if you don't intend to use the JSON for anything.
 * The `-s` flag forces the use of HTTPS for all captures (excluding FTP links). Input URLs and outlinks are automatically changed to HTTPS.
@@ -221,6 +221,7 @@ spn.sh -o 'https?://cloudflare-ipfs\.com/ipfs/(QmUNLLsPACCz1vLxQVkXqqLX5R1X345qq
 * December 17, 2022: Modification and addition of console messages that appear when the script starts and ends
 * December 18, 2022: Addition of `-t` flag; change in the default amount of maximum parallel capture jobs from 1 to 8
 * December 19, 2022: Bug fixes
+* February 26, 2023: Bug fixes; addition of a check for messages received after submitting each URL; change in the default amount of maximum parallel capture jobs from 8 to 30
 
 ### Future plans
 
