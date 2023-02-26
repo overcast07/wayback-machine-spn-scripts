@@ -307,7 +307,7 @@ function capture(){
 				message=$(echo "$request" | grep -E -A 1 '<h2[^>]*>' | tail -1 | sed -Ee 's| *</?p> *||g')
 			fi
 			if [[ -z "$message" ]]; then
-				if [[ "$request" =~ "429 Too Many Requests" ]] || [[ "$request" =~ "Your IP address is in the Save Page Now block list" ]] || [[ "$request" == "" ]]; then
+				if [[ "$request" =~ "429 Too Many Requests" ]] || [[ "$request" == "" ]]; then
 					echo "$request"
 					if [[ ! -f lock$f.txt ]]; then
 						kill -HUP $tor_pid || exit 1
@@ -334,6 +334,13 @@ function capture(){
 							break 2
 						else
 							kill -HUP $tor_pid || exit 1
+						fi
+					elif [[ "$message" =~ "Your IP address is in the Save Page Now block list" ]]; then
+						echo "$message"
+						if [[ ! -f lock$f.txt ]]; then
+							kill -HUP $tor_pid || exit 1
+						else
+							break 2
 						fi
 					else
 						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
@@ -368,7 +375,7 @@ function capture(){
 							message=$(echo "$request" | grep -E -A 1 '<h2[^>]*>' | tail -1 | sed -Ee 's| *</?p> *||g')
 						fi
 						if [[ -z "$message" ]]; then
-							if [[ "$request" =~ "429 Too Many Requests" ]] || [[ "$request" =~ "Your IP address is in the Save Page Now block list" ]] || [[ "$request" == "" ]]; then
+							if [[ "$request" =~ "429 Too Many Requests" ]] || [[ "$request" == "" ]]; then
 								echo "$request"
 								kill -HUP $tor_pid || exit 1
 							elif ! : &>/dev/null </dev/tcp/127.0.0.1/$tor_port; then
@@ -390,6 +397,10 @@ function capture(){
 								else
 									kill -HUP $tor_pid || exit 1
 								fi
+								
+							elif [[ "$message" =~ "Your IP address is in the Save Page Now block list" ]]; then
+								echo "$message"
+								kill -HUP $tor_pid || exit 1
 							else
 								rm lock$f.txt
 								echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job failed] $1"
