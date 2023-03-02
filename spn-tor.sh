@@ -304,7 +304,7 @@ function capture(){
 					break
 				fi
 				echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Request failed] $1"
-				message=$(echo "$request" | grep -E -A 1 '<h2[^>]*>' | tail -1 | sed -Ee 's| *</?p> *||g')
+				message=$(echo "$request" | grep -E -A 2 '</?h2( [^>]*)?>' | grep -E '</?p( [^>]*)?>' | sed -Ee 's| *</?p> *||g')
 			fi
 			if [[ -z "$message" ]]; then
 				if [[ "$request" =~ "429 Too Many Requests" ]] || [[ "$request" == "" ]]; then
@@ -372,7 +372,7 @@ function capture(){
 								break 2
 							fi
 							echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Request failed] $1"
-							message=$(echo "$request" | grep -E -A 1 '<h2[^>]*>' | tail -1 | sed -Ee 's| *</?p> *||g')
+							message=$(echo "$request" | grep -E -A 2 '</?h2( [^>]*)?>' | grep -E '</?p( [^>]*)?>' | sed -Ee 's| *</?p> *||g')
 						fi
 						if [[ -z "$message" ]]; then
 							if [[ "$request" =~ "429 Too Many Requests" ]] || [[ "$request" == "" ]]; then
@@ -428,7 +428,7 @@ function capture(){
 		if [[ -n "$auth" ]]; then
 			message=$(echo "$request" | grep -Eo '"message":"([^"\\]|\\["\\])*"' | sed -Ee 's/"message":"(.*)"/\1/g')
 		else
-			message=$(echo "$request" | grep -E -A 1 '<h2[^>]*>' | tail -1 | sed -Ee 's| *</?p> *||g')
+			message=$(echo "$request" | grep -E -A 2 '</?h2( [^>]*)?>' | grep -E '</?p( [^>]*)?>' | sed -Ee 's| *</?p> *||g')
 		fi
 		if [[ -n "$message" ]]; then
 			echo "        $message"
