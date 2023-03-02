@@ -222,6 +222,7 @@ spn.sh -o 'https?://cloudflare-ipfs\.com/ipfs/(QmUNLLsPACCz1vLxQVkXqqLX5R1X345qq
 * December 18, 2022: Addition of `-t` flag; change in the default amount of maximum parallel capture jobs from 1 to 8
 * December 19, 2022: Bug fixes
 * February 26, 2023: Bug fixes; addition of a check for messages received after submitting each URL; change in the default amount of maximum parallel capture jobs from 8 to 30
+* March 2, 2023: Bug fix
 
 ### Future plans
 
