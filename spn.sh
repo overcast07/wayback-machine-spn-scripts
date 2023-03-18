@@ -3,19 +3,11 @@
 trap "abort" SIGINT SIGTERM
 
 function abort(){
-	if [[ -n "$custom_dir" ]]; then
-		echo "
+	echo "
 
 == Aborting spn.sh ==
 Data folder: $dir
 "
-	else
-		echo "
-
-== Aborting spn.sh ==
-Data folder: ~/$dir
-"
-	fi
 	exit 1
 }
 
@@ -186,13 +178,15 @@ Using existing data folder: $dir
 	done
 else
 	f=''
-	parent="spn-data"
+	# Use XDG directory specification, if variable is not set default to ~/.local/share/spn-data
+	# Setting base directory on parent variable allows discarding redundant '~/' expansions
+	parent="${XDG_DATA_HOME:-$HOME\/.local\/share}/spn-data"
 	month=$(date -u +%Y-%m)
 	now=$(date +%s)
 
 	for i in "$parent" "$parent/$month"; do
-		if [[ ! -d ~/"$i" ]]; then
-			mkdir ~/"$i" || { echo "The folder ~/$i could not be created"; exit 1; }
+		if [[ ! -d "$i" ]]; then
+			mkdir "$i" || { echo "The folder $i could not be created"; exit 1; }
 		fi
 	done
 
@@ -200,20 +194,20 @@ else
 	sleep ".0$((RANDOM % 8))"
 
 	# Wait between 0.1 and 0.73 seconds if the folder already exists
-	while [[ -d ~/"$parent/$month/$now$dir_suffix" ]]; do
+	while [[ -d "$parent/$month/$now$dir_suffix" ]]; do
 		sleep ".$((10 + RANDOM % 64))"
 		now=$(date +%s)
 	done
 	dir="$parent/$month/$now$dir_suffix"
 
 	# Try to create the folder
-	mkdir ~/"$dir" || { echo "The folder ~/$dir could not be created"; exit 1; }
+	mkdir "$dir" || { echo "The folder $dir could not be created"; exit 1; }
 	echo "
 
 == Starting spn.sh ==
-Data folder: ~/$dir
+Data folder: $dir
 "
-	cd ~/"$dir"
+	cd "$dir"
 fi
 
 # Convert links to HTTPS
@@ -725,6 +719,6 @@ else
 	echo "
 
 == Ending spn.sh ==
-Data folder: ~/$dir
+Data folder: $dir
 "
 fi
