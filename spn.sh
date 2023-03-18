@@ -178,9 +178,15 @@ Using existing data folder: $dir
 	done
 else
 	f=''
-	# Use XDG directory specification, if variable is not set default to ~/.local/share/spn-data
 	# Setting base directory on parent variable allows discarding redundant '~/' expansions
-	parent="${XDG_DATA_HOME:-$HOME\/.local\/share}/spn-data"
+	if [ "$(uname)" == "Darwin" ]; then
+		# Mac OS X platform
+		parent="${HOME}/Library/spn-data"
+	else
+		# Use XDG directory specification, if variable is not set default to ~/.local/share/spn-data
+		parent="${XDG_DATA_HOME:-$HOME\/.local\/share}/spn-data"
+	fi
+
 	month=$(date -u +%Y-%m)
 	now=$(date +%s)
 
