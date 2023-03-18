@@ -185,8 +185,8 @@ else
 	else
 		# Use XDG directory specification; if variable is not set then default to ~/.local/share/spn-data
 		parent="${XDG_DATA_HOME:-$HOME/.local/share}/spn-data"
-		# if ~/.local/share doesn't exist use ~/spn-data
-		if [[ ! -d "$HOME/.local/share" ]]; then
+		# If the folder doesn't exist, use ~/spn-data instead
+		if [[ ! -d "${XDG_DATA_HOME:-$HOME/.local/share}" ]]; then
 			parent="${HOME}/spn-data"
 		fi
 	fi
