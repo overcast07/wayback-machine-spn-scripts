@@ -3,19 +3,11 @@
 trap "abort" SIGINT SIGTERM
 
 function abort(){
-	if [[ -n "$custom_dir" ]]; then
-		echo "
+	echo "
 
 == Aborting spn-tor.sh ==
 Data folder: $dir
 "
-	else
-		echo "
-
-== Aborting spn-tor.sh ==
-Data folder: ~/$dir
-"
-	fi
 	kill $tor_pid
 	exit 1
 }
@@ -161,13 +153,25 @@ else
 	fi
 fi
 
-parent="spn-data"
+# Setting base directory on parent variable allows discarding redundant '~/' expansions
+if [ "$(uname)" == "Darwin" ]; then
+	# macOS platform
+	parent="${HOME}/Library/spn-data"
+else
+	# Use XDG directory specification; if variable is not set then default to ~/.local/share/spn-data
+	parent="${XDG_DATA_HOME:-$HOME/.local/share}/spn-data"
+	# If the folder doesn't exist, use ~/spn-data instead
+	if [[ ! -d "${XDG_DATA_HOME:-$HOME/.local/share}" ]]; then
+		parent="${HOME}/spn-data"
+	fi
+fi
+
 tor_dir="$parent/tor"
 tor_data_dir="$tor_dir/data"
 
 for i in "$parent" "$tor_dir" "$tor_data_dir"; do
-	if [[ ! -d ~/"$i" ]]; then
-		mkdir ~/"$i" || { echo "The folder ~/$i could not be created"; exit 1; }
+	if [[ ! -d "$i" ]]; then
+		mkdir "$i" || { echo "The folder $i could not be created"; exit 1; }
 	fi
 done
 
@@ -197,13 +201,13 @@ Using existing data folder: $dir
 	done
 else
 	f=''
-	parent="spn-data"
+
 	month=$(date -u +%Y-%m)
 	now=$(date +%s)
 
 	for i in "$parent" "$parent/$month"; do
-		if [[ ! -d ~/"$i" ]]; then
-			mkdir ~/"$i" || { echo "The folder ~/$i could not be created"; exit 1; }
+		if [[ ! -d "$i" ]]; then
+			mkdir "$i" || { echo "The folder $i could not be created"; exit 1; }
 		fi
 	done
 
@@ -211,20 +215,20 @@ else
 	sleep ".0$((RANDOM % 8))"
 
 	# Wait between 0.1 and 0.73 seconds if the folder already exists
-	while [[ -d ~/"$parent/$month/$now$dir_suffix" ]]; do
+	while [[ -d "$parent/$month/$now$dir_suffix" ]]; do
 		sleep ".$((10 + RANDOM % 64))"
 		now=$(date +%s)
 	done
 	dir="$parent/$month/$now$dir_suffix"
 
 	# Try to create the folder
-	mkdir ~/"$dir" || { echo "The folder ~/$dir could not be created"; exit 1; }
+	mkdir "$dir" || { echo "The folder $dir could not be created"; exit 1; }
 	echo "
 
 == Starting spn-tor.sh ==
-Data folder: ~/$dir
+Data folder: $dir
 "
-	cd ~/"$dir"
+	cd "$dir"
 fi
 
 # Increment port number until finding one that is not in use
@@ -233,8 +237,8 @@ while : &>/dev/null </dev/tcp/127.0.0.1/$tor_port; do
 	((tor_port++))
 done
 echo "SOCKSPort $tor_port
-DataDirectory $HOME/$tor_data_dir/$tor_port" > ~/"$tor_dir/$tor_port"
-tor -f ~/"$tor_dir/$tor_port" &
+DataDirectory $tor_data_dir/$tor_port" > "$tor_dir/$tor_port"
+tor -f "$tor_dir/$tor_port" &
 tor_pid=$!
 
 # Wait for the connection to start working
@@ -776,7 +780,7 @@ else
 	echo "
 
 == Ending spn-tor.sh ==
-Data folder: ~/$dir
+Data folder: $dir
 "
 fi
 
