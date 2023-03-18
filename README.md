@@ -32,6 +32,14 @@ The information on this page is focused on the script itself. More information a
 
 Download the script and make it executable with the command `chmod a+x spn.sh`. The script can be run directly and does not need to be compiled to a binary executable beforehand.
 
+#### Arch Linux
+
+On Arch Linux, this script is also available as an [AUR package](https://aur.archlinux.org/packages/wayback-spn-script-git) and you can install it with your favorite AUR helper.
+
+```bash
+yay -S wayback-spn-script-git
+```
+
 ### Dependencies
 
 This script is written in Bash and has been tested using the shell environment preinstalled binaries on macOS 10.14, macOS 12 and Windows 10 WSL Ubuntu. As far as possible, utilities have been used in ways in which behavior is consistent for both their GNU and BSD implementations. (The use of `sed -E` in particular may be a problem for older versions of GNU `sed`, but otherwise there should be no major compatibility issues.)
@@ -223,9 +231,4 @@ spn.sh -o 'https?://cloudflare-ipfs\.com/ipfs/(QmUNLLsPACCz1vLxQVkXqqLX5R1X345qq
 * December 19, 2022: Bug fixes
 * February 26, 2023: Bug fixes; addition of a check for messages received after submitting each URL; change in the default amount of maximum parallel capture jobs from 8 to 30
 * March 2, 2023: Bug fix
-
-### Future plans
-
-* Add specialized scripts for specific purposes
-* Allow outlinks to be added automatically from direct downloads of pages
-* Add data logging/handling for server-side outlinks function
+* March 18, 2023: Change default location of the spn-data folder (see [#22](https://github.com/overcast07/wayback-machine-spn-scripts/pull/22))
