@@ -180,10 +180,10 @@ else
 	f=''
 	# Setting base directory on parent variable allows discarding redundant '~/' expansions
 	if [ "$(uname)" == "Darwin" ]; then
-		# Mac OS X platform
+		# macOS platform
 		parent="${HOME}/Library/spn-data"
 	else
-		# Use XDG directory specification, if variable is not set default to ~/.local/share/spn-data
+		# Use XDG directory specification; if variable is not set then default to ~/.local/share/spn-data
 		parent="${XDG_DATA_HOME:-$HOME/.local/share}/spn-data"
 		# if ~/.local/share doesn't exist use ~/spn-data
 		if [[ ! -d "$HOME/.local/share" ]]; then
