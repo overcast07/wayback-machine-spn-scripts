@@ -184,7 +184,11 @@ else
 		parent="${HOME}/Library/spn-data"
 	else
 		# Use XDG directory specification, if variable is not set default to ~/.local/share/spn-data
-		parent="${XDG_DATA_HOME:-$HOME\/.local\/share}/spn-data"
+		parent="${XDG_DATA_HOME:-$HOME/.local/share}/spn-data"
+		# if ~/.local/share doesn't exist use ~/spn-data
+		if [[ ! -d "$HOME/.local/share" ]]; then
+			parent="${HOME}/spn-data"
+		fi
 	fi
 
 	month=$(date -u +%Y-%m)
