@@ -141,7 +141,7 @@ Options:
                 starting another capture job (default: 2.5)
 
  -x pattern     save detected capture outlinks not matching regex (ERE) pattern
-                (if -o is also used, outlinks are filtered using both regexes)"
+                (if -o is also used, outlinks are filtered using both regexes)
 ```
 
 All flags should be placed before arguments, but flags may be used in any order. If a string contains characters that need to be escaped in Bash, wrap the string in quotes; e.g. `-x '&action=edit'`.
