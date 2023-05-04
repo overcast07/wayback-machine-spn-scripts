@@ -5,7 +5,7 @@ trap "abort" SIGINT SIGTERM
 function abort(){
 	echo "
 
-== Aborting spn-tor.sh ==
+== Aborting $(basename "$0") ==
 Data folder: $dir
 "
 	kill $tor_pid
@@ -19,11 +19,12 @@ custom_dir=''
 dir_suffix=''
 no_errors=''
 outlinks=''
-parallel='30'
+parallel='20'
 quiet=''
 resume=''
 ssl_only=''
 list_update_rate='3600'
+capture_job_rate='2.5'
 include_pattern=''
 exclude_pattern=''
 
@@ -50,7 +51,7 @@ Options:
 
  -o pattern     save detected capture outlinks matching regex (ERE) pattern
 
- -p N           run at most N capture jobs in parallel (default: 30)
+ -p N           run at most N capture jobs in parallel (default: 20)
 
  -q             discard JSON for completed jobs instead of writing to log file
 
@@ -62,11 +63,14 @@ Options:
  -t N           wait at least N seconds before updating the main list of URLs
                 with outlinks and failed capture jobs (default: 3600)
 
+ -w N           wait at least N seconds after starting a capture job before
+                starting another capture job (default: 2.5)
+
  -x pattern     save detected capture outlinks not matching regex (ERE) pattern
                 (if -o is also used, outlinks are filtered using both regexes)"
 }
 
-while getopts 'a:c:d:f:i:no:p:qr:st:x:' flag; do
+while getopts 'a:c:d:f:i:no:p:qr:st:w:x:' flag; do
 	case "${flag}" in
 		a)	auth="$OPTARG" ;;
 		c)	declare -a "curl_args=($OPTARG)" ;;
@@ -80,6 +84,7 @@ while getopts 'a:c:d:f:i:no:p:qr:st:x:' flag; do
 		r)	resume="$OPTARG" ;;
 		s)	ssl_only='true' ;;
 		t)	list_update_rate="$OPTARG" ;;
+		w)	capture_job_rate="$OPTARG" ;;
 		x)	outlinks='true'; exclude_pattern="$OPTARG" ;;
 		*)	print_usage
 			exit 1 ;;
@@ -182,19 +187,19 @@ if [[ -n "$custom_dir" ]]; then
 		mkdir "$dir" || { echo "The folder $dir could not be created"; exit 1; }
 		echo "
 
-== Starting spn-tor.sh ==
+== Starting $(basename "$0") ==
 Data folder: $dir
 "
 	else
 		echo "
 
-== Starting spn-tor.sh ==
+== Starting $(basename "$0") ==
 Using existing data folder: $dir
 "
 	fi
 	cd "$dir"
 
-	for i in max_parallel_jobs$f.txt status_rate$f.txt list_update_rate$f.txt lock$f.txt daily_limit$f.txt quit$f.txt; do
+	for i in max_parallel_jobs$f.txt status_rate$f.txt list_update_rate$f.txt capture_job_rate$f.txt lock$f.txt daily_limit$f.txt quit$f.txt; do
 		if [[ -f "$i" ]]; then
 			rm "$i"
 		fi
@@ -225,7 +230,7 @@ else
 	mkdir "$dir" || { echo "The folder $dir could not be created"; exit 1; }
 	echo "
 
-== Starting spn-tor.sh ==
+== Starting $(basename "$0") ==
 Data folder: $dir
 "
 	cd "$dir"
@@ -264,6 +269,7 @@ fi
 # max_parallel_jobs.txt and status_rate.txt are created later
 touch failed.txt
 echo "$list_update_rate" > list_update_rate$f.txt
+echo "$capture_job_rate" > capture_job_rate$f.txt
 # Add successful capture URLs from previous session, if any, to the index and the list of captures
 # This is to prevent redundant captures in the current session and in future ones
 if [[ -n "$success" ]]; then
@@ -492,7 +498,11 @@ function capture(){
 				break 2
 			fi
 			if [[ "$status" == '"status":"success"' ]]; then
-				echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job completed] $1"
+				if [[ "$request" =~ '"first_archive":true' ]]; then
+					echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job completed] [First archive] $1"
+				else
+					echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job completed] $1"
+				fi
 				echo "$1" >> success.log
 				timestamp=$(echo "$request" | grep -Eo '"timestamp":"[0-9]*"' | sed -Ee 's/^"timestamp":"(.*)"/\1/g')
 				url=$(echo "$request" | grep -Eo '"original_url":"([^"\\]|\\["\\])*"' | sed -Ee 's/^"original_url":"(.*)"/\1/g;s/\\(["\\])/\1/g')
@@ -512,6 +522,15 @@ function capture(){
 				fi
 				return 0
 			elif [[ "$status" == '"status":"pending"' ]]; then
+				new_download_size=$(echo "$request" | grep -Eo '"download_size":[0-9]*' | head -1)
+				if [[ -n "$new_download_size" ]]; then
+					if [[ "$new_download_size" == "$download_size" ]]; then
+						echo "$(date -u '+%Y-%m-%d %H:%M:%S') [File download stalled] $1"
+						break 2
+					else
+						download_size="$new_download_size"
+					fi
+				fi
 				if (( $(date +%s) - start_time > 1200 )); then
 					echo "$(date -u '+%Y-%m-%d %H:%M:%S') [Job timed out] $1"
 					break 2
@@ -628,7 +647,7 @@ if [[ -n "$parallel" ]]; then
 		(
 		time_since_start="$SECONDS"
 		while IFS='' read -r line || [[ -n "$line" ]]; do
-			capture "$line" & ((children > 2)) && sleep 2.5
+			capture "$line" & sleep $(<capture_job_rate$f.txt)
 			children_wait=0
 			children=`jobs -p | wc -l`
 			while ! (( children < $(<max_parallel_jobs$f.txt) )); do
@@ -662,7 +681,7 @@ if [[ -n "$parallel" ]]; then
 				new_list=$(get_list)
 				if [[ -n "$new_list" ]]; then
 					while IFS='' read -r line2 || [[ -n "$line2" ]]; do
-						capture "$line2" & ((children > 2)) && sleep 2.5
+						capture "$line2" & sleep $(<capture_job_rate$f.txt)
 						children_wait=0
 						children=`jobs -p | wc -l`
 						while ! ((children < $(<max_parallel_jobs$f.txt) )); do
@@ -773,13 +792,13 @@ if [[ -n "$custom_dir" ]]; then
 
 	echo "
 
-== Ending spn-tor.sh ==
+== Ending $(basename "$0") ==
 Data folder: $dir
 "
 else
 	echo "
 
-== Ending spn-tor.sh ==
+== Ending $(basename "$0") ==
 Data folder: $dir
 "
 fi
