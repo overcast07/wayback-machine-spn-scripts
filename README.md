@@ -82,7 +82,7 @@ Keep at most `20` capture jobs active at the same time. (The server-side rate li
 spn.sh -p 20 urls.txt
 ```
 
-Don't run capture jobs in parallel. Wait at least 60 seconds between captures.
+Don't run capture jobs in parallel. Start no more than one capture every 60 seconds.
 ```bash
 spn.sh -p 1 -w 60 urls.txt
 ```
