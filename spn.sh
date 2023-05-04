@@ -697,14 +697,22 @@ fi
 while [[ ! -f quit$f.txt ]]; do
 	time_since_start="$SECONDS"
 	while IFS='' read -r line || [[ -n "$line" ]]; do
+		time_since_capture_start="$SECONDS"
 		capture "$line"
+		if [[ $(bc <<< "$SECONDS - $time_since_capture_start < $(<capture_job_rate$f.txt)") == "1" ]]; then
+			sleep $(bc <<< "$(<capture_job_rate$f.txt) - ($SECONDS - $time_since_capture_start)")
+		fi
 		# Check failures and outlinks regularly
 		if (( SECONDS - time_since_start > $(<list_update_rate$f.txt) )) && [[ ! -f quit$f.txt ]] ; then
 			time_since_start="$SECONDS"
 			new_list=$(get_list)
 			if [[ -n "$new_list" ]]; then
 				while IFS='' read -r line2 || [[ -n "$line2" ]]; do
+					time_since_capture_start="$SECONDS"
 					capture "$line2"
+					if [[ $(bc <<< "$SECONDS - $time_since_capture_start < $(<capture_job_rate$f.txt)") == "1" ]]; then
+						sleep $(bc <<< "$(<capture_job_rate$f.txt) - ($SECONDS - $time_since_capture_start)")
+					fi
 				done <<< "$new_list"
 			fi
 			unset new_list
