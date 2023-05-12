@@ -77,12 +77,12 @@ spn.sh urls.txt
 
 ##### Run jobs in parallel
 
-Keep at most `20` capture jobs active at the same time. (The server-side rate limit may come into effect before reaching this limit.)
+Keep at most `15` capture jobs active at the same time. (The server-side rate limit may come into effect before reaching this limit.)
 ```bash
-spn.sh -p 20 urls.txt
+spn.sh -p 15 urls.txt
 ```
 
-Don't run capture jobs in parallel. Start no more than one capture every 60 seconds.
+Don't run capture jobs in parallel. Start no more than one capture every `60` seconds.
 ```bash
 spn.sh -p 1 -w 60 urls.txt
 ```
@@ -99,9 +99,9 @@ Save outlinks matching either `youtube` or `reddit`, except those matching `face
 spn.sh -o 'youtube|reddit' -x 'facebook' https://example.com/
 ```
 
-Save outlinks to the subdomain `www.example.org`.
+Save outlinks to the subdomain `fr.wikipedia.org`.
 ```bash
-spn.sh -o 'https?://www\.example\.org(/|$)' https://example.com/
+spn.sh -o 'https?://fr\.wikipedia\.org(/|$)' https://example.com/
 ```
 
 #### Flags
