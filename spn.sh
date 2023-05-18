@@ -329,6 +329,16 @@ function capture(){
 						# Retry the request until either the job is submitted or a different error is received
 						sleep 2
 						if [[ -n "$auth" ]]; then
+							# If logged in, then check if the server-side limit for captures has been reached
+							while :; do
+								request=$(curl "${curl_args[@]}" -s -m 60 -H "Accept: application/json" -H "Authorization: LOW ${auth}" "https://web.archive.org/save/status/user")
+								available=$(echo "$request" | grep -Eo '"available":[0-9]*' | head -1)
+								if [[ "$available" != '"available":0' ]]; then
+									break
+								else
+									sleep 5
+								fi
+							done
 							request=$(curl "${curl_args[@]}" -s -m 60 -X POST --data-urlencode "url=${1}" -d "${post_data}" -H "Accept: application/json" -H "Authorization: LOW ${auth}" "https://web.archive.org/save/")
 							job_id=$(echo "$request" | grep -Eo '"job_id":"([^"\\]|\\["\\])*"' | head -1 | sed -Ee 's/"job_id":"(.*)"/\1/g')
 							if [[ -n "$job_id" ]]; then
@@ -624,6 +634,18 @@ if [[ -n "$parallel" ]]; then
 				sleep $(( 3600 - $(date +%s) % 3600 ))
 				rm daily_limit$f.txt
 			fi
+			# If logged in, then check if the server-side limit for captures has been reached
+			if [[ -n "$auth" ]] && (( children > 4 )); then
+				while :; do
+					request=$(curl "${curl_args[@]}" -s -m 60 -H "Accept: application/json" -H "Authorization: LOW ${auth}" "https://web.archive.org/save/status/user")
+					available=$(echo "$request" | grep -Eo '"available":[0-9]*' | head -1)
+					if [[ "$available" != '"available":0' ]]; then
+						break
+					else
+						sleep 5
+					fi
+				done
+			fi
 			# Check failures and outlinks regularly
 			if (( SECONDS - time_since_start > $(<list_update_rate$f.txt) )) && [[ ! -f quit$f.txt ]] ; then
 				time_since_start="$SECONDS"
@@ -657,6 +679,18 @@ if [[ -n "$parallel" ]]; then
 							echo "$(date -u '+%Y-%m-%d %H:%M:%S') Pausing for $(( (3600 - $(date +%s) % 3600) / 60 )) minutes"
 							sleep $(( 3600 - $(date +%s) % 3600 ))
 							rm daily_limit$f.txt
+						fi
+						# If logged in, then check if the server-side limit for captures has been reached
+						if [[ -n "$auth" ]] && (( children > 4 )); then
+							while :; do
+								request=$(curl "${curl_args[@]}" -s -m 60 -H "Accept: application/json" -H "Authorization: LOW ${auth}" "https://web.archive.org/save/status/user")
+								available=$(echo "$request" | grep -Eo '"available":[0-9]*' | head -1)
+								if [[ "$available" != '"available":0' ]]; then
+									break
+								else
+									sleep 5
+								fi
+							done
 						fi
 					done <<< "$new_list"
 					unset new_list
