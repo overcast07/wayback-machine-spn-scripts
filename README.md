@@ -1,4 +1,4 @@
-# Bash scripts for Wayback Machine SPN
+# Bash scripts for Wayback Machine Save Page Now
 
 `spn.sh`, a Bash script that asks the Internet Archive Wayback Machine's [Save Page Now (SPN)](https://web.archive.org/save/) to save live web pages
 
