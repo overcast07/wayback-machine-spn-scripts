@@ -338,7 +338,7 @@ function capture(){
 			else
 				echo "        $message"
 				if ! [[ "$message" =~ "You have already reached the limit" || "$message" =~ "Cannot start capture" || "$message" =~ "The server encountered an internal error and was unable to complete your request" || "$message" =~ "Crawling this host is paused" ]]; then
-					if [[ "$message" =~ "You cannot make more than "[1-9][0-9,]*" captures per day" ]]; then
+					if [[ "$message" =~ "You cannot make more than " ]]; then
 						if [[ -n "$auth" ]]; then
 							touch daily_limit$f.txt
 							break 2
@@ -409,7 +409,7 @@ function capture(){
 							echo "        $message"
 							if [[ "$message" =~ "You have already reached the limit" || "$message" =~ "Cannot start capture" || "$message" =~ "The server encountered an internal error and was unable to complete your request" || "$message" =~ "Crawling this host is paused" ]]; then
 								:
-							elif [[ "$message" =~ "You cannot make more than "[1-9][0-9,]*" captures per day" ]]; then
+							elif [[ "$message" =~ "You cannot make more than " ]]; then
 								if [[ -n "$auth" ]]; then
 									rm lock$f.txt
 									touch daily_limit$f.txt
