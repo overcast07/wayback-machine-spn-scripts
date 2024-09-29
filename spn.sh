@@ -252,7 +252,8 @@ if [[ -n "$success" ]]; then
 	echo "$success" >> index.txt
 	echo "$success" >> success.log
 fi
-echo "$list" | awk '!seen [$0]++' >> index.txt
+# Dedupe list, then send to index.txt
+list=$(awk '!seen [$0]++' <<< "$list") && echo "$list" >> index.txt
 if [[ -n "$outlinks" ]]; then
 	touch outlinks.txt
 	# Create both files even if one of them would be empty
