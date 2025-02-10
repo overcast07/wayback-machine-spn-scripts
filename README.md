@@ -40,6 +40,20 @@ On Arch Linux, this script is also available as an [AUR package](https://aur.arc
 yay -S wayback-spn-script-git
 ```
 
+#### Docker
+
+Build docker image: 
+
+```
+docker build -t spn .
+```
+
+Start docker container with [arguments](#flags) of `spn.sh`: 
+
+```
+docker run -d --rm spn -a xxx:xxx -p 10 https://example.com
+```
+
 ### Dependencies
 
 This script is written in Bash and has been tested using the shell environment preinstalled binaries on macOS 10.14, macOS 12 and Windows 10 WSL Ubuntu. As far as possible, utilities have been used in ways in which behavior is consistent for both their GNU and BSD implementations. (The use of `sed -E` in particular may be a problem for older versions of GNU `sed`, but otherwise there should be no major compatibility issues.)
