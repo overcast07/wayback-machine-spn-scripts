@@ -277,7 +277,8 @@ if [[ -n "$success" ]]; then
 	echo "$success" >> index.txt
 	echo "$success" >> success.log
 fi
-echo "$list" | awk '!seen [$0]++' >> index.txt
+# Dedupe list, then send to index.txt
+list=$(awk '!seen [$0]++' <<< "$list") && echo "$list" >> index.txt
 if [[ -n "$outlinks" ]]; then
 	touch outlinks.txt
 	# Create both files even if one of them would be empty
@@ -454,11 +455,11 @@ function capture(){
 			echo "        $message"
 			
 			# Extract the delay, if any, from the message
-			delay=$(echo "$message" | grep -Eo 'capture will start in (?:.*? hours?(?:,? *? minutes?)?(?:,? *? seconds?)?|.*? minutes?(?:,? *? seconds?)?|.*? seconds?)')
+			delay=$(echo "$message" | grep -Eo 'capture will start in')
 			if [[ -n "$delay" ]]; then
-				delay_hours=$(echo "$delay" | sed -Ee 's/.* ~?([0-9]+) hours?.*/\1/g')
-				delay_minutes=$(echo "$delay" | sed -Ee 's/.* ~?([0-9]+) minutes?.*/\1/g')
-				delay_seconds=$(echo "$delay" | sed -Ee 's/.* ~?([0-9]+) seconds?.*/\1/g')
+				delay_hours=$(echo "$message" | grep -Eo "[0-9]+ hour" | grep -Eo "[0-9]*")
+				delay_minutes=$(echo "$message" | grep -Eo "[0-9]+ minute" | grep -Eo "[0-9]*")
+				delay_seconds=$(echo "$message" | grep -Eo "[0-9]+ second" | grep -Eo "[0-9]*")
 				
 				# If the values are not integers, set them to 0
 				[[ $delay_hours =~ ^[0-9]+$ ]] || delay_hours="0"
