@@ -408,7 +408,7 @@ function capture(){
 			echo "        $message"
 			
 			# Extract the delay, if any, from the message
-			delay=$(echo "$message" | grep -Po 'capture will start in (?:.*? hours?(?:,? *? minutes?)?(?:,? *? seconds?)?|.*? minutes?(?:,? *? seconds?)?|.*? seconds?)')
+			delay=$(echo "$message" | grep -Eo 'capture will start in (?:.*? hours?(?:,? *? minutes?)?(?:,? *? seconds?)?|.*? minutes?(?:,? *? seconds?)?|.*? seconds?)')
 			if [[ -n "$delay" ]]; then
 				delay_hours=$(echo "$delay" | sed -Ee 's/.* ~?([0-9]+) hours?.*/\1/g')
 				delay_minutes=$(echo "$delay" | sed -Ee 's/.* ~?([0-9]+) minutes?.*/\1/g')
