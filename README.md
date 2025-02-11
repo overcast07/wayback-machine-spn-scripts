@@ -239,3 +239,5 @@ spn.sh -o 'https?://cloudflare-ipfs\.com/ipfs/(QmUNLLsPACCz1vLxQVkXqqLX5R1X345qq
 * March 18, 2023: Change default location of the spn-data folder (see [#22](https://github.com/overcast07/wayback-machine-spn-scripts/pull/22))
 * May 4, 2023: Addition of `-w` flag; addition of "first archive" check; addition of stalling check for downloads of large files; change in the default amount of maximum parallel capture jobs from 30 to 20
 * May 18, 2023: Addition of [user status](https://docs.google.com/document/d/1Nsv52MvSjbLb2PCpHlat0gkzw0EvtSgpKHu4mk0MnrA/edit#heading=h.8u2kvw9jqbn6) API check to avoid repeatedly producing the "You have already reached the limit of active Save Page Now sessions" status message
+* September 29, 2024: Remove duplicates in the $list variable (see [#37](https://github.com/overcast07/wayback-machine-spn-scripts/pull/37))
+* February 11, 2025: Fix unwanted `grep` warnings (see [#41](https://github.com/overcast07/wayback-machine-spn-scripts/pull/41))
